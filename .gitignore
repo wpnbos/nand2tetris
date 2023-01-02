@@ -6,3 +6,6 @@ tools
 00/
 demo/
 info.pdf
+venv/
+.vscode/
+__pycache__
