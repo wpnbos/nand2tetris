@@ -132,3 +132,12 @@ def assemble(assembly_code: str) -> str:
 
     binary_code = "\n".join(binary_codes) + "\n"
     return binary_code
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    target_file = Path(sys.argv[1])
+    write_path = target_file.parent.joinpath(f"{target_file.stem}.hack")
+    write_path.write_text(assemble(target_file.read_text()))
