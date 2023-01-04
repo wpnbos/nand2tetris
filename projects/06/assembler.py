@@ -21,8 +21,8 @@ COMP_CODES = {
 }
 
 JUMP_CODES = {
-    "JGT": "000",
-    "JEQ": "001",
+    "JGT": "001",
+    "JEQ": "010",
     "JGE": "011",
     "JLT": "100",
     "JNE": "101",
@@ -49,9 +49,10 @@ def assemble(assembly_code: str) -> str:
         else:
             # Line is a C-instruction
             dest, comp, jump = None, None, None
-            if "=" in line:
+            comp = line
+            if "=" in comp:
                 dest, comp = line.split("=")
-            if comp and ";" in comp:
+            if ";" in comp:
                 comp, jump = comp.split(";")
             for part in (dest, comp, jump):
                 if part:
