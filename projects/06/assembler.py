@@ -20,7 +20,7 @@ COMP_CODES = {
     "D|A": "010101",
 }
 
-JUMP_CODES = {
+JMP_CODES = {
     "JGT": "001",
     "JEQ": "010",
     "JGE": "011",
@@ -48,16 +48,16 @@ def assemble(assembly_code: str) -> str:
             binary_codes.append(binary_code)
         else:
             # Line is a C-instruction
-            dest, comp, jump = None, None, None
+            dest, comp, jmp = None, None, None
             comp = line
             if "=" in comp:
                 dest, comp = line.split("=")
             if ";" in comp:
-                comp, jump = comp.split(";")
-            for part in (dest, comp, jump):
+                comp, jmp = comp.split(";")
+            for part in (dest, comp, jmp):
                 if part:
                     part = part.strip()
-            print(f"{dest=}, {comp=}, {jump=}")
+            print(f"{dest=}, {comp=}, {jmp=}")
             dest_code = [0, 0, 0]
             if dest:
                 dest = "".join(sorted(dest))
@@ -74,11 +74,11 @@ def assemble(assembly_code: str) -> str:
                 comp_code = COMP_CODES[comp.replace("M", "A")]
                 a = "1" if "M" in comp else "0"
 
-            jump_code = "000"
-            if jump:
-                jump_code = JUMP_CODES[jump]
+            jmp_code = "000"
+            if jmp:
+                jmp_code = JMP_CODES[jmp]
 
-            binary_codes.append(f"111{a}{comp_code}{dest_code}{jump_code}")
+            binary_codes.append(f"111{a}{comp_code}{dest_code}{jmp_code}")
     binary_code = "\n".join(binary_codes) + "\n"
     print(binary_code)
     return binary_code
