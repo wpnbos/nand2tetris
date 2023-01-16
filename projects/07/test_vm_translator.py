@@ -68,7 +68,7 @@ def test_generate_end():
     assert vm_translator.generate_end() == expected_code
 
 
-def test_generate_eq():
+def test_generate_and():
     expected_code = "\n".join(
         [
             "// eq",
@@ -84,7 +84,34 @@ def test_generate_eq():
             "M=M+1",
         ]
     )
-    assert vm_translator.generate_eq() == expected_code
+    assert vm_translator.generate_and() == expected_code
+
+
+def test_generate_eq():
+    expected_code = "\n".join(
+        [
+            "// eq",
+            "@SP",
+            "M=M-1",
+            "A=M",
+            "D=M",
+            "@SP",
+            "M=M-1",
+            "A=M",
+            "D=M-D",
+            "@EQUAL1",
+            "D;JEQ",
+            "@SP",
+            "A=M",
+            "M=0",
+            "@CONT1",
+            "0;JEQ",
+            "(EQUAL1)",
+            "M=1",
+            "(CONT1)",
+        ]
+    )
+    assert vm_translator.generate_eq(1) == expected_code
 
 
 def test_generate_lt():

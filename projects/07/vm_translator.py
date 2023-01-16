@@ -50,7 +50,7 @@ def generate_end() -> str:
     )
 
 
-def generate_eq() -> str:
+def generate_and() -> str:
     return "\n".join(
         [
             "// eq",
@@ -149,22 +149,65 @@ def generate_not() -> str:
     )
 
 
+def generate_eq(eq_count: int) -> str:
+    return "\n".join(
+        [
+            "// eq",
+            "@SP",
+            "M=M-1",
+            "A=M",
+            "D=M",
+            "@SP",
+            "M=M-1",
+            "A=M",
+            "D=M-D",
+            f"@EQUAL{eq_count}",
+            "D;JEQ",
+            "@SP",
+            "A=M",
+            "M=0",
+            f"@CONT{eq_count}",
+            "0;JEQ",
+            f"(EQUAL{eq_count})",
+            "@SP",
+            "A=M",
+            "M=1",
+            f"(CONT{eq_count})",
+        ]
+    )
+
+
+generators = {
+    "add": generate_add,
+    "sub": generate_sub,
+    "or": generate_or,
+    "and": generate_and,
+}
+
+
 def translate(vm_code: str) -> str:
     lines = clean_lines(vm_code.splitlines())
 
+    eq_count = 0
     output = []
     for line in lines:
         command = line.split(" ")[0]
         if command == "push":
             _, mem_seg, value = line.split(" ")
             output.append(generate_push(int(value)))
-        elif command == "add":
-            output.append(generate_add())
-        elif command == "sub":
-            output.append(generate_sub())
-        elif command == "or":
-            output.append(generate_or())
-        elif command == "and":
-            output.append(generate_and())
+        elif command == "eq":
+            output.append(generate_eq(eq_count))
+            eq_count += 1
+        elif command in generators:
+            output.append(generators[command]())
     output.append(generate_end())
     return "\n".join(output) + "\n"
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    target_file = Path(sys.argv[1])
+    vm_code = target_file.read_text()
+    target_file.with_suffix(".asm").write_text(translate(vm_code))
