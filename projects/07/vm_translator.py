@@ -65,7 +65,7 @@ def generate_and() -> str:
     )
 
 
-def generate_gt() -> str:
+def generate_gt(comp_count: int) -> str:
     return "\n".join(
         [
             "// gt",
@@ -74,13 +74,24 @@ def generate_gt() -> str:
             "D=M",
             INSTRUCTIONS["SP--"],
             "A=M",
-            "M=M>D",
-            INSTRUCTIONS["SP++"],
+            "D=M-D",
+            f"@GT{comp_count}",
+            "D;JGT",
+            "@SP",
+            "A=M",
+            "M=0",
+            f"@CONT{comp_count}",
+            "0;JEQ",
+            f"(GT{comp_count})",
+            "@SP",
+            "A=M",
+            "M=1",
+            f"(CONT{comp_count})",
         ]
     )
 
 
-def generate_lt() -> str:
+def generate_lt(comp_count: int) -> str:
     return "\n".join(
         [
             "// lt",
@@ -89,8 +100,19 @@ def generate_lt() -> str:
             "D=M",
             INSTRUCTIONS["SP--"],
             "A=M",
-            "M=M<D",
-            INSTRUCTIONS["SP++"],
+            "D=D-M",
+            f"@LT{comp_count}",
+            "D;JLT",
+            "@SP",
+            "A=M",
+            "M=0",
+            f"@CONT{comp_count}",
+            "0;JEQ",
+            f"(LT{comp_count})",
+            "@SP",
+            "A=M",
+            "M=1",
+            f"(CONT{comp_count})",
         ]
     )
 
@@ -149,30 +171,28 @@ def generate_not() -> str:
     )
 
 
-def generate_eq(eq_count: int) -> str:
+def generate_eq(comp_count: int) -> str:
     return "\n".join(
         [
             "// eq",
-            "@SP",
-            "M=M-1",
+            INSTRUCTIONS["SP--"],
             "A=M",
             "D=M",
-            "@SP",
-            "M=M-1",
+            INSTRUCTIONS["SP--"],
             "A=M",
             "D=M-D",
-            f"@EQUAL{eq_count}",
+            f"@EQUAL{comp_count}",
             "D;JEQ",
             "@SP",
             "A=M",
             "M=0",
-            f"@CONT{eq_count}",
+            f"@CONT{comp_count}",
             "0;JEQ",
-            f"(EQUAL{eq_count})",
+            f"(EQUAL{comp_count})",
             "@SP",
             "A=M",
             "M=1",
-            f"(CONT{eq_count})",
+            f"(CONT{comp_count})",
         ]
     )
 
@@ -184,20 +204,23 @@ generators = {
     "and": generate_and,
 }
 
+COMPS = {"eq": generate_eq, "lt": generate_lt, "gt": generate_gt}
+
 
 def translate(vm_code: str) -> str:
+    # Seems to be a problem with gt. See first gt call in StackTest.vm
     lines = clean_lines(vm_code.splitlines())
 
-    eq_count = 0
+    comp_count = 0
     output = []
     for line in lines:
         command = line.split(" ")[0]
         if command == "push":
             _, mem_seg, value = line.split(" ")
             output.append(generate_push(int(value)))
-        elif command == "eq":
-            output.append(generate_eq(eq_count))
-            eq_count += 1
+        elif command in COMPS:
+            output.append(COMPS[command](comp_count))
+            comp_count += 1
         elif command in generators:
             output.append(generators[command]())
     output.append(generate_end())

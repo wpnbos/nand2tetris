@@ -1,8 +1,8 @@
-import pytest
 from pathlib import Path
 
-import vm_translator
+import pytest
 
+import vm_translator
 
 asm_files_dir = Path(__file__).parent.joinpath("test")
 asm_files = list(asm_files_dir.glob("*.asm"))
@@ -107,6 +107,8 @@ def test_generate_eq():
             "@CONT1",
             "0;JEQ",
             "(EQUAL1)",
+            "@SP",
+            "A=M",
             "M=1",
             "(CONT1)",
         ]
@@ -125,12 +127,20 @@ def test_generate_lt():
             "@SP",
             "M=M-1",
             "A=M",
-            "M=M<D",
+            "D=D-M",
+            "@LT1",
+            "D;JLT",
             "@SP",
-            "M=M+1",
+            "A=M",
+            "M=0",
+            "@CONT1",
+            "0;JEQ",
+            "(LT1)",
+            "M=1",
+            "(CONT1)",
         ]
     )
-    assert vm_translator.generate_lt() == expected_code
+    assert vm_translator.generate_lt(1) == expected_code
 
 
 def test_generate_gt():
@@ -144,12 +154,20 @@ def test_generate_gt():
             "@SP",
             "M=M-1",
             "A=M",
-            "M=M>D",
+            "D=M-D",
+            "@GT1",
+            "D;JGT",
             "@SP",
-            "M=M+1",
+            "A=M",
+            "M=0",
+            "@CONT1",
+            "0;JEQ",
+            "(GT1)",
+            "M=1",
+            "(CONT1)",
         ]
     )
-    assert vm_translator.generate_gt() == expected_code
+    assert vm_translator.generate_gt(1) == expected_code
 
 
 def test_generate_or():
