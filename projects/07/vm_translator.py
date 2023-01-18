@@ -53,7 +53,7 @@ def generate_end() -> str:
 def generate_and() -> str:
     return "\n".join(
         [
-            "// eq",
+            "// and",
             INSTRUCTIONS["SP--"],
             "A=M",
             "D=M",
@@ -74,9 +74,9 @@ def generate_gt(comp_count: int) -> str:
             "D=M",
             INSTRUCTIONS["SP--"],
             "A=M",
-            "D=M-D",
+            "D=D-M",
             f"@GT{comp_count}",
-            "D;JGT",
+            "D;JLT",
             "@SP",
             "A=M",
             "M=0",
@@ -85,8 +85,9 @@ def generate_gt(comp_count: int) -> str:
             f"(GT{comp_count})",
             "@SP",
             "A=M",
-            "M=1",
+            "M=-1",
             f"(CONT{comp_count})",
+            INSTRUCTIONS["SP++"],
         ]
     )
 
@@ -102,7 +103,7 @@ def generate_lt(comp_count: int) -> str:
             "A=M",
             "D=D-M",
             f"@LT{comp_count}",
-            "D;JLT",
+            "D;JGT",
             "@SP",
             "A=M",
             "M=0",
@@ -111,8 +112,9 @@ def generate_lt(comp_count: int) -> str:
             f"(LT{comp_count})",
             "@SP",
             "A=M",
-            "M=1",
+            "M=-1",
             f"(CONT{comp_count})",
+            INSTRUCTIONS["SP++"],
         ]
     )
 
@@ -191,8 +193,9 @@ def generate_eq(comp_count: int) -> str:
             f"(EQUAL{comp_count})",
             "@SP",
             "A=M",
-            "M=1",
+            "M=-1",
             f"(CONT{comp_count})",
+            INSTRUCTIONS["SP++"],
         ]
     )
 
@@ -202,6 +205,8 @@ generators = {
     "sub": generate_sub,
     "or": generate_or,
     "and": generate_and,
+    "not": generate_not,
+    "neg": generate_neg,
 }
 
 COMPS = {"eq": generate_eq, "lt": generate_lt, "gt": generate_gt}

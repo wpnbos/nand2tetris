@@ -71,7 +71,7 @@ def test_generate_end():
 def test_generate_and():
     expected_code = "\n".join(
         [
-            "// eq",
+            "// and",
             "@SP",
             "M=M-1",
             "A=M",
@@ -109,8 +109,10 @@ def test_generate_eq():
             "(EQUAL1)",
             "@SP",
             "A=M",
-            "M=1",
+            "M=-1",
             "(CONT1)",
+            "@SP",
+            "M=M+1",
         ]
     )
     assert vm_translator.generate_eq(1) == expected_code
@@ -129,15 +131,19 @@ def test_generate_lt():
             "A=M",
             "D=D-M",
             "@LT1",
-            "D;JLT",
+            "D;JGT",
             "@SP",
             "A=M",
             "M=0",
             "@CONT1",
             "0;JEQ",
             "(LT1)",
-            "M=1",
+            "@SP",
+            "A=M",
+            "M=-1",
             "(CONT1)",
+            "@SP",
+            "M=M+1",
         ]
     )
     assert vm_translator.generate_lt(1) == expected_code
@@ -154,17 +160,21 @@ def test_generate_gt():
             "@SP",
             "M=M-1",
             "A=M",
-            "D=M-D",
+            "D=D-M",
             "@GT1",
-            "D;JGT",
+            "D;JLT",
             "@SP",
             "A=M",
             "M=0",
             "@CONT1",
             "0;JEQ",
             "(GT1)",
-            "M=1",
+            "@SP",
+            "A=M",
+            "M=-1",
             "(CONT1)",
+            "@SP",
+            "M=M+1",
         ]
     )
     assert vm_translator.generate_gt(1) == expected_code
