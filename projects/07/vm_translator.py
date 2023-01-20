@@ -1,4 +1,19 @@
 INSTRUCTIONS = {"SP++": "@SP\nM=M+1", "SP--": "@SP\nM=M-1"}
+MEM_MAP = {
+    "local": 1,
+    "argument": 3,
+    "this": 3,
+    "that": 4,
+    "pointer": 3,
+    "temp": 5,
+    "static": 16,
+}
+SYMBOLS = {
+    "local": "LCL",
+    "argument": "ARG",
+    "this": "THIS",
+    "that": "THAT",
+}
 
 
 def clean_lines(lines: list[str]) -> list[str]:
@@ -222,7 +237,49 @@ def translate(vm_code: str) -> str:
         command = line.split(" ")[0]
         if command == "push":
             _, mem_seg, value = line.split(" ")
-            output.append(generate_push(int(value)))
+            if mem_seg == "constant":
+                output.append(generate_push(int(value)))
+            # Write push for other mem segs than constant
+        elif command == "pop":
+            _, mem_seg, dest = line.split(" ")
+            if mem_seg == "temp":
+                address = MEM_MAP[mem_seg] + int(dest)
+                instruction = "\n".join(
+                    [
+                        f"// pop {mem_seg} {dest}",
+                        f"@{address}",
+                        "D=A",
+                        "@address",
+                        "M=D",
+                        "@SP",
+                        "M=M-1",
+                        "A=M",
+                        "D=M",
+                        "@address",
+                        "A=M",
+                        "M=D",
+                    ]
+                )
+            else:
+                instruction = "\n".join(
+                    [
+                        f"// pop {mem_seg} {dest}",
+                        f"@{SYMBOLS[mem_seg]}",
+                        "D=M",
+                        f"@{dest}",
+                        "D=D+A",
+                        "@address",
+                        "M=D",
+                        "@SP",
+                        "M=M-1",
+                        "A=M",
+                        "D=M",
+                        "@address",
+                        "A=M",
+                        "M=D",
+                    ]
+                )
+            output.append(instruction)
         elif command in COMPS:
             output.append(COMPS[command](comp_count))
             comp_count += 1
