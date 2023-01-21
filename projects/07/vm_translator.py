@@ -13,6 +13,7 @@ SYMBOLS = {
     "argument": "ARG",
     "this": "THIS",
     "that": "THAT",
+    "pointer": "THIS",
 }
 
 
@@ -240,7 +241,7 @@ def translate(vm_code: str) -> str:
             if mem_seg == "constant":
                 output.append(generate_push(int(dest)))
             # Write push for other mem segs than constant
-            elif mem_seg == "temp":
+            elif mem_seg in ("temp", "pointer"):
                 address = MEM_MAP[mem_seg] + int(dest)
                 instruction = "\n".join(
                     [
@@ -272,7 +273,7 @@ def translate(vm_code: str) -> str:
                 output.append(instruction)
         elif command == "pop":
             _, mem_seg, dest = line.split(" ")
-            if mem_seg == "temp":
+            if mem_seg in ("temp", "pointer"):
                 address = MEM_MAP[mem_seg] + int(dest)
                 instruction = "\n".join(
                     [
