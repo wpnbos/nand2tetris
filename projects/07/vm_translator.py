@@ -1,3 +1,5 @@
+from functools import partial
+
 INSTRUCTIONS = {"SP++": "@SP\nM=M+1", "SP--": "@SP\nM=M-1", "SP=D": "@SP\nA=M\nM=D"}
 MEM_MAP = {
     "local": 1,
@@ -15,6 +17,7 @@ SYMBOLS = {
     "that": "THAT",
     "pointer": "THIS",
 }
+OPERATORS = {"add": "+", "sub": "-", "and": "&", "or": "|", "neg": "-", "not": "!"}
 
 
 def clean_lines(lines: list[str]) -> list[str]:
@@ -26,6 +29,17 @@ def clean_lines(lines: list[str]) -> list[str]:
     ]
 
 
+def generate_operator(operator: str) -> str:
+    return "\n".join(
+        [
+            f"// {operator}",
+            pop_to_d(),
+            f"M=M{OPERATORS[operator]}D",
+            INSTRUCTIONS["SP++"],
+        ]
+    )
+
+
 def pop_to_d() -> str:
     return "\n".join(
         [
@@ -34,17 +48,6 @@ def pop_to_d() -> str:
             "D=M",
             INSTRUCTIONS["SP--"],
             "A=M",
-        ]
-    )
-
-
-def generate_add() -> str:
-    return "\n".join(
-        [
-            "// add",
-            pop_to_d(),
-            "M=M+D",
-            INSTRUCTIONS["SP++"],
         ]
     )
 
@@ -60,31 +63,20 @@ def generate_end() -> str:
     )
 
 
-def generate_and() -> str:
+def generate_comp(comp: str, comp_count: int) -> str:
     return "\n".join(
         [
-            "// and",
-            pop_to_d(),
-            "M=M&D",
-            INSTRUCTIONS["SP++"],
-        ]
-    )
-
-
-def generate_gt(comp_count: int) -> str:
-    return "\n".join(
-        [
-            "// gt",
+            f"// {comp}",
             pop_to_d(),
             "D=D-M",
-            f"@GT{comp_count}",
-            "D;JLT",
+            f"@COMP{comp_count}",
+            "D;JEQ" if comp == "eq" else "D;JGT" if comp == "lt" else "D;JLT",
             "@SP",
             "A=M",
             "M=0",
             f"@CONT{comp_count}",
             "0;JEQ",
-            f"(GT{comp_count})",
+            f"(COMP{comp_count})",
             "@SP",
             "A=M",
             "M=-1",
@@ -94,108 +86,26 @@ def generate_gt(comp_count: int) -> str:
     )
 
 
-def generate_lt(comp_count: int) -> str:
+def generate_single_value_operator(operator: str) -> str:
     return "\n".join(
         [
-            "// lt",
-            pop_to_d(),
-            "D=D-M",
-            f"@LT{comp_count}",
-            "D;JGT",
-            "@SP",
-            "A=M",
-            "M=0",
-            f"@CONT{comp_count}",
-            "0;JEQ",
-            f"(LT{comp_count})",
-            "@SP",
-            "A=M",
-            "M=-1",
-            f"(CONT{comp_count})",
-            INSTRUCTIONS["SP++"],
-        ]
-    )
-
-
-def generate_sub() -> str:
-    return "\n".join(
-        [
-            "// sub",
-            pop_to_d(),
-            "M=M-D",
-            INSTRUCTIONS["SP++"],
-        ]
-    )
-
-
-def generate_or() -> str:
-    return "\n".join(
-        [
-            "// or",
-            pop_to_d(),
-            "M=M|D",
-            INSTRUCTIONS["SP++"],
-        ]
-    )
-
-
-def generate_neg() -> str:
-    return "\n".join(
-        [
-            "// neg",
+            f"// {operator}",
             INSTRUCTIONS["SP--"],
             "A=M",
-            "M=-M",
-            INSTRUCTIONS["SP++"],
-        ]
-    )
-
-
-def generate_not() -> str:
-    return "\n".join(
-        [
-            "// not",
-            INSTRUCTIONS["SP--"],
-            "A=M",
-            "M=!M",
-            INSTRUCTIONS["SP++"],
-        ]
-    )
-
-
-def generate_eq(comp_count: int) -> str:
-    return "\n".join(
-        [
-            "// eq",
-            pop_to_d(),
-            "D=M-D",
-            f"@EQUAL{comp_count}",
-            "D;JEQ",
-            "@SP",
-            "A=M",
-            "M=0",
-            f"@CONT{comp_count}",
-            "0;JEQ",
-            f"(EQUAL{comp_count})",
-            "@SP",
-            "A=M",
-            "M=-1",
-            f"(CONT{comp_count})",
+            f"M={OPERATORS[operator]}M",
             INSTRUCTIONS["SP++"],
         ]
     )
 
 
 generators = {
-    "add": generate_add,
-    "sub": generate_sub,
-    "or": generate_or,
-    "and": generate_and,
-    "not": generate_not,
-    "neg": generate_neg,
+    "add": partial(generate_operator, "add"),
+    "sub": partial(generate_operator, "sub"),
+    "or": partial(generate_operator, "or"),
+    "and": partial(generate_operator, "and"),
+    "not": partial(generate_single_value_operator, "not"),
+    "neg": partial(generate_single_value_operator, "neg"),
 }
-
-COMPS = {"eq": generate_eq, "lt": generate_lt, "gt": generate_gt}
 
 
 def push_constant_to_d(value: int) -> str:
@@ -297,8 +207,8 @@ def translate(vm_code: str, file_stem: str) -> str:
             output.append(generate_push(line, file_stem))
         elif command == "pop":
             output.append(generate_pop(line, file_stem))
-        elif command in COMPS:
-            output.append(COMPS[command](comp_count))
+        elif command in ("gt", "lt", "eq"):
+            output.append(generate_comp(command, comp_count))
             comp_count += 1
         elif command in generators:
             output.append(generators[command]())
