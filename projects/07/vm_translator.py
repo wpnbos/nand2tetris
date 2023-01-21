@@ -236,10 +236,40 @@ def translate(vm_code: str) -> str:
     for line in lines:
         command = line.split(" ")[0]
         if command == "push":
-            _, mem_seg, value = line.split(" ")
+            _, mem_seg, dest = line.split(" ")
             if mem_seg == "constant":
-                output.append(generate_push(int(value)))
+                output.append(generate_push(int(dest)))
             # Write push for other mem segs than constant
+            elif mem_seg == "temp":
+                address = MEM_MAP[mem_seg] + int(dest)
+                instruction = "\n".join(
+                    [
+                        f"// push {mem_seg} {dest}",
+                        f"@{address}",
+                        "D=M",
+                        "@SP",
+                        "A=M",
+                        "M=D",
+                        INSTRUCTIONS["SP++"],
+                    ]
+                )
+                output.append(instruction)
+            else:
+                instruction = "\n".join(
+                    [
+                        f"// push {mem_seg} {dest}",
+                        f"@{SYMBOLS[mem_seg]}",
+                        "D=M",
+                        f"@{dest}",
+                        "A=D+A",
+                        "D=M",
+                        "@SP",
+                        "A=M",
+                        "M=D",
+                        INSTRUCTIONS["SP++"],
+                    ]
+                )
+                output.append(instruction)
         elif command == "pop":
             _, mem_seg, dest = line.split(" ")
             if mem_seg == "temp":
