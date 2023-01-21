@@ -228,7 +228,7 @@ generators = {
 COMPS = {"eq": generate_eq, "lt": generate_lt, "gt": generate_gt}
 
 
-def translate(vm_code: str) -> str:
+def translate(vm_code: str, file_stem: str) -> str:
     # Seems to be a problem with gt. See first gt call in StackTest.vm
     lines = clean_lines(vm_code.splitlines())
 
@@ -241,8 +241,12 @@ def translate(vm_code: str) -> str:
             if mem_seg == "constant":
                 output.append(generate_push(int(dest)))
             # Write push for other mem segs than constant
-            elif mem_seg in ("temp", "pointer"):
-                address = MEM_MAP[mem_seg] + int(dest)
+            elif mem_seg in ("temp", "pointer", "static"):
+                address = (
+                    MEM_MAP[mem_seg] + int(dest)
+                    if not mem_seg == "static"
+                    else f"{file_stem}.{int(dest)}"
+                )
                 instruction = "\n".join(
                     [
                         f"// push {mem_seg} {dest}",
@@ -273,20 +277,24 @@ def translate(vm_code: str) -> str:
                 output.append(instruction)
         elif command == "pop":
             _, mem_seg, dest = line.split(" ")
-            if mem_seg in ("temp", "pointer"):
-                address = MEM_MAP[mem_seg] + int(dest)
+            if mem_seg in ("temp", "pointer", "static"):
+                address = (
+                    MEM_MAP[mem_seg] + int(dest)
+                    if not mem_seg == "static"
+                    else f"{file_stem}.{int(dest)}"
+                )
                 instruction = "\n".join(
                     [
                         f"// pop {mem_seg} {dest}",
                         f"@{address}",
                         "D=A",
-                        "@address",
+                        "@R13",
                         "M=D",
                         "@SP",
                         "M=M-1",
                         "A=M",
                         "D=M",
-                        "@address",
+                        "@R13",
                         "A=M",
                         "M=D",
                     ]
@@ -299,13 +307,13 @@ def translate(vm_code: str) -> str:
                         "D=M",
                         f"@{dest}",
                         "D=D+A",
-                        "@address",
+                        "@R13",
                         "M=D",
                         "@SP",
                         "M=M-1",
                         "A=M",
                         "D=M",
-                        "@address",
+                        "@R13",
                         "A=M",
                         "M=D",
                     ]
@@ -326,4 +334,4 @@ if __name__ == "__main__":
 
     target_file = Path(sys.argv[1])
     vm_code = target_file.read_text()
-    target_file.with_suffix(".asm").write_text(translate(vm_code))
+    target_file.with_suffix(".asm").write_text(translate(vm_code, target_file.stem))
