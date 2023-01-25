@@ -212,6 +212,24 @@ def translate(vm_code: str, file_stem: str) -> str:
             comp_count += 1
         elif command in generators:
             output.append(generators[command]())
+        elif command == "label":
+            symbol = line.split(" ")[1]
+            output.append(f"({symbol})")
+        elif command == "if-goto":
+            symbol = line.split(" ")[1]
+            output.append(
+                "\n".join(
+                    [
+                        f"// if-goto {symbol}",
+                        INSTRUCTIONS["SP--"],
+                        "A=M",
+                        "D=M",
+                        f"@{symbol}",
+                        "D;JNE",
+                    ]
+                )
+            )
+
     output.append(generate_end())
     return "\n".join(output) + "\n"
 
