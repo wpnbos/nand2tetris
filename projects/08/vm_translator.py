@@ -229,6 +229,17 @@ def translate(vm_code: str, file_stem: str) -> str:
                     ]
                 )
             )
+        elif command == "goto":
+            symbol = line.split(" ")[1]
+            output.append(
+                "\n".join(
+                    [
+                        f"// goto {symbol}",
+                        f"@{symbol}",
+                        "0;JMP",
+                    ]
+                )
+            )
 
     output.append(generate_end())
     return "\n".join(output) + "\n"
