@@ -128,13 +128,7 @@ def push_value_from_mem_seg_to_d(mem_seg: str, i: int) -> str:
     )
 
 
-def generate_push(line: str, file_stem: str) -> str:
-    _, mem_seg, dest = line.split(" ")
-    address = str(
-        MEM_MAP[mem_seg] + int(dest)
-        if mem_seg not in ("static", "constant")
-        else f"{file_stem}.{int(dest)}"
-    )
+def generate_push(mem_seg, address, dest):
     instruction = "\n".join(
         [
             f"// push {mem_seg} {dest}",
@@ -148,6 +142,16 @@ def generate_push(line: str, file_stem: str) -> str:
         ]
     )
     return instruction
+
+
+def translate_push(line: str, file_stem: str) -> str:
+    _, mem_seg, dest = line.split(" ")
+    address = str(
+        MEM_MAP[mem_seg] + int(dest)
+        if mem_seg not in ("static", "constant")
+        else f"{file_stem}.{int(dest)}"
+    )
+    return generate_push(mem_seg, address, dest)
 
 
 def generate_pop(line: str, file_stem: str) -> str:
@@ -195,6 +199,55 @@ def generate_pop(line: str, file_stem: str) -> str:
         )
 
 
+def restore_register(register: str) -> str:
+    return "\n".join(
+        [
+            f"// restore {register}",
+            "@SP",
+            "A=M",
+            "D=M",
+            f"@{register}",
+            "M=D",
+        ]
+    )
+
+
+def generate_return():
+    return "\n".join(
+        [
+            "// return",
+            "@ARG",  # Store ARG in TMP
+            "D=M",
+            "@R13",
+            "M=D",
+            INSTRUCTIONS["SP--"],  # Place return value at ARG
+            "A=M",
+            "D=M",
+            "@ARG",
+            "A=M",
+            "M=D",
+            "@LCL",  # Go to LCL to start restoring frame
+            "D=M",
+            "@SP",
+            "M=D",  # Set SP to LCL
+            INSTRUCTIONS["SP--"],  # Now at THAT
+            restore_register("THAT"),
+            INSTRUCTIONS["SP--"],  # Now at THIS
+            restore_register("THIS"),
+            INSTRUCTIONS["SP--"],  # Now at ARG
+            restore_register("ARG"),
+            INSTRUCTIONS["SP--"],  # Now at LCL
+            restore_register("LCL"),
+            INSTRUCTIONS["SP--"],  # Now somewhere in the arguments
+            "@R13",
+            "D=M",
+            "@SP",
+            "M=D",
+            INSTRUCTIONS["SP++"],
+        ]
+    )
+
+
 def translate(vm_code: str, file_stem: str) -> str:
     # Seems to be a problem with gt. See first gt call in StackTest.vm
     lines = clean_lines(vm_code.splitlines())
@@ -204,7 +257,7 @@ def translate(vm_code: str, file_stem: str) -> str:
     for line in lines:
         command = line.split(" ")[0]
         if command == "push":
-            output.append(generate_push(line, file_stem))
+            output.append(translate_push(line, file_stem))
         elif command == "pop":
             output.append(generate_pop(line, file_stem))
         elif command in ("gt", "lt", "eq"):
@@ -240,6 +293,16 @@ def translate(vm_code: str, file_stem: str) -> str:
                     ]
                 )
             )
+        elif command == "function":
+            _, symbol, n_vars = line.split(" ")
+            output.append(
+                "\n".join(
+                    [f"// function {symbol} {n_vars}"]
+                    + [generate_push("constant", None, 0) for _ in range(int(n_vars))]
+                )
+            )
+        elif command == "return":
+            output.append(generate_return())
 
     output.append(generate_end())
     return "\n".join(output) + "\n"
