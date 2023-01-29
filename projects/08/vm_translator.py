@@ -244,6 +244,19 @@ def generate_return():
             "@SP",
             "M=D",
             INSTRUCTIONS["SP++"],
+            "A=M",
+            "A=M",
+            "0;JMP",
+        ]
+    )
+
+
+def generate_goto(symbol: str) -> str:
+    return "\n".join(
+        [
+            f"// goto {symbol}",
+            f"@{symbol}",
+            "0;JMP",
         ]
     )
 
@@ -253,7 +266,22 @@ def translate(vm_code: str, file_stem: str) -> str:
     lines = clean_lines(vm_code.splitlines())
 
     comp_count = 0
-    output = []
+    call_count = 0
+    output: list[str] = []
+    # Generate bootstrap code
+    output.append(
+        "\n".join(
+            [
+                # "// bootstrap",
+                # "@256",
+                # "D=A",
+                # "@SP",
+                # "M=D",
+                "// call Sys.init 0",  # Implement call to Sys.init
+                generate_goto("Sys.init"),
+            ]
+        )
+    )
     for line in lines:
         command = line.split(" ")[0]
         if command == "push":
@@ -284,25 +312,74 @@ def translate(vm_code: str, file_stem: str) -> str:
             )
         elif command == "goto":
             symbol = line.split(" ")[1]
-            output.append(
-                "\n".join(
-                    [
-                        f"// goto {symbol}",
-                        f"@{symbol}",
-                        "0;JMP",
-                    ]
-                )
-            )
+            output.append(generate_goto(symbol))
         elif command == "function":
             _, symbol, n_vars = line.split(" ")
             output.append(
                 "\n".join(
                     [f"// function {symbol} {n_vars}"]
+                    + [f"({symbol})"]
                     + [generate_push("constant", None, 0) for _ in range(int(n_vars))]
                 )
             )
         elif command == "return":
             output.append(generate_return())
+        elif command == "call":
+            _, symbol, n_args = line.split(" ")
+            output.append(
+                "\n".join(
+                    [
+                        f"// call {symbol} {n_args}",
+                        "@SP // save new ARG to TMP",
+                        "D=M",
+                        f"@{n_args}",
+                        "D=D-A",
+                        "@R13",
+                        "M=D",
+                        f"@RETURN{call_count} // push return address",
+                        "D=A",
+                        "@SP",
+                        "A=M",
+                        "M=D",
+                        INSTRUCTIONS["SP++"],
+                        "@LCL // push LCL",
+                        "D=M",
+                        "@SP",
+                        "A=M",
+                        "M=D",
+                        INSTRUCTIONS["SP++"],
+                        "@ARG // push ARG",
+                        "D=M",
+                        "@SP",
+                        "A=M",
+                        "M=D",
+                        INSTRUCTIONS["SP++"],
+                        "@THIS // push THIS",
+                        "D=M",
+                        "@SP",
+                        "A=M",
+                        "M=D",
+                        INSTRUCTIONS["SP++"],
+                        "@THAT // push THAT",
+                        "D=M",
+                        "@SP",
+                        "A=M",
+                        "M=D",
+                        INSTRUCTIONS["SP++"],
+                        "@R13 // update ARG",
+                        "D=M",
+                        "@ARG",
+                        "M=D",
+                        "@SP // update LCL",
+                        "D=M",
+                        "@LCL",
+                        "M=D",
+                        generate_goto(symbol),
+                        f"(RETURN{call_count})",
+                    ],
+                )
+            )
+            call_count += 1
 
     output.append(generate_end())
     return "\n".join(output) + "\n"
@@ -312,6 +389,10 @@ if __name__ == "__main__":
     import sys
     from pathlib import Path
 
-    target_file = Path(sys.argv[1])
-    vm_code = target_file.read_text()
-    target_file.with_suffix(".asm").write_text(translate(vm_code, target_file.stem))
+    target_folder = Path(sys.argv[1])
+    vm_files = target_folder.glob("*.vm")
+    vm_code = "\n".join([file_.read_text() for file_ in vm_files])
+    print(target_folder)
+    target_folder.joinpath(target_folder.stem).with_suffix(".asm").write_text(
+        translate(vm_code, target_folder.stem)
+    )
