@@ -216,15 +216,14 @@ def generate_return():
     return "\n".join(
         [
             "// return",
-            "@ARG",  # Store ARG in TMP
+            "@ARG",  # Store ARG in R13
             "D=M",
             "@R13",
             "M=D",
-            INSTRUCTIONS["SP--"],  # Place return value at ARG
+            INSTRUCTIONS["SP--"],  # Place return value at R15
             "A=M",
             "D=M",
-            "@ARG",
-            "A=M",
+            "@R15",
             "M=D",
             "@LCL",  # Go to LCL to start restoring frame
             "D=M",
@@ -238,13 +237,18 @@ def generate_return():
             restore_register("ARG"),
             INSTRUCTIONS["SP--"],  # Now at LCL
             restore_register("LCL"),
-            INSTRUCTIONS["SP--"],  # Now somewhere in the arguments
-            "@R13",
-            "D=M",
+            INSTRUCTIONS["SP--"],  # Now at return address
             "@SP",
-            "M=D",
-            INSTRUCTIONS["SP++"],
             "A=M",
+            "D=M",
+            "@R14",  # Store return address in R14
+            "M=D",
+            "@R15 // place return value at old ARG",
+            "D=M",
+            "@R13 // old ARG",
+            "A=M",
+            "M=D",
+            "@R14 // jump to return address",
             "A=M",
             "0;JMP",
         ]
@@ -272,11 +276,11 @@ def translate(vm_code: str, file_stem: str) -> str:
     output.append(
         "\n".join(
             [
-                # "// bootstrap",
-                # "@256",
-                # "D=A",
-                # "@SP",
-                # "M=D",
+                "// bootstrap",
+                "@256",
+                "D=A",
+                "@SP",
+                "M=D",
                 "// call Sys.init 0",  # Implement call to Sys.init
                 generate_goto("Sys.init"),
             ]
