@@ -265,6 +265,60 @@ def generate_goto(symbol: str) -> str:
     )
 
 
+def generate_call(symbol: str, n_args: int, call_count: int) -> str:
+    return "\n".join(
+        [
+            f"// call {symbol} {n_args}",
+            "@SP // save new ARG to TMP",
+            "D=M",
+            f"@{n_args}",
+            "D=D-A",
+            "@R13",
+            "M=D",
+            f"@RETURN{call_count} // push return address",
+            "D=A",
+            "@SP",
+            "A=M",
+            "M=D",
+            INSTRUCTIONS["SP++"],
+            "@LCL // push LCL",
+            "D=M",
+            "@SP",
+            "A=M",
+            "M=D",
+            INSTRUCTIONS["SP++"],
+            "@ARG // push ARG",
+            "D=M",
+            "@SP",
+            "A=M",
+            "M=D",
+            INSTRUCTIONS["SP++"],
+            "@THIS // push THIS",
+            "D=M",
+            "@SP",
+            "A=M",
+            "M=D",
+            INSTRUCTIONS["SP++"],
+            "@THAT // push THAT",
+            "D=M",
+            "@SP",
+            "A=M",
+            "M=D",
+            INSTRUCTIONS["SP++"],
+            "@R13 // update ARG",
+            "D=M",
+            "@ARG",
+            "M=D",
+            "@SP // update LCL",
+            "D=M",
+            "@LCL",
+            "M=D",
+            generate_goto(symbol),
+            f"(RETURN{call_count})",
+        ],
+    )
+
+
 def translate(vm_code: str, file_stem: str) -> str:
     # Seems to be a problem with gt. See first gt call in StackTest.vm
     lines = clean_lines(vm_code.splitlines())
@@ -282,7 +336,7 @@ def translate(vm_code: str, file_stem: str) -> str:
                 "@SP",
                 "M=D",
                 "// call Sys.init 0",  # Implement call to Sys.init
-                generate_goto("Sys.init"),
+                generate_call("Sys.init", 0, call_count),
             ]
         )
     )
@@ -330,59 +384,7 @@ def translate(vm_code: str, file_stem: str) -> str:
             output.append(generate_return())
         elif command == "call":
             _, symbol, n_args = line.split(" ")
-            output.append(
-                "\n".join(
-                    [
-                        f"// call {symbol} {n_args}",
-                        "@SP // save new ARG to TMP",
-                        "D=M",
-                        f"@{n_args}",
-                        "D=D-A",
-                        "@R13",
-                        "M=D",
-                        f"@RETURN{call_count} // push return address",
-                        "D=A",
-                        "@SP",
-                        "A=M",
-                        "M=D",
-                        INSTRUCTIONS["SP++"],
-                        "@LCL // push LCL",
-                        "D=M",
-                        "@SP",
-                        "A=M",
-                        "M=D",
-                        INSTRUCTIONS["SP++"],
-                        "@ARG // push ARG",
-                        "D=M",
-                        "@SP",
-                        "A=M",
-                        "M=D",
-                        INSTRUCTIONS["SP++"],
-                        "@THIS // push THIS",
-                        "D=M",
-                        "@SP",
-                        "A=M",
-                        "M=D",
-                        INSTRUCTIONS["SP++"],
-                        "@THAT // push THAT",
-                        "D=M",
-                        "@SP",
-                        "A=M",
-                        "M=D",
-                        INSTRUCTIONS["SP++"],
-                        "@R13 // update ARG",
-                        "D=M",
-                        "@ARG",
-                        "M=D",
-                        "@SP // update LCL",
-                        "D=M",
-                        "@LCL",
-                        "M=D",
-                        generate_goto(symbol),
-                        f"(RETURN{call_count})",
-                    ],
-                )
-            )
+            output.append(generate_call(symbol, int(n_args), call_count))
             call_count += 1
 
     output.append(generate_end())
