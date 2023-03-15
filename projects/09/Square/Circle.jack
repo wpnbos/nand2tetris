@@ -1,0 +1,49 @@
+class Circle {
+    field int x, y;
+    field int size;
+
+    constructor Circle new(int Ax, int Ay, int Asize) {
+        let x = Ax;
+        let y = Ay;
+        let size = Asize;
+        do draw();
+        return this;
+    }
+
+    method void draw() {
+        do Screen.setColor(true);
+        do Screen.drawCircle(x, y, size);
+        return;
+    }
+
+    method void moveDown() {
+        if ((y + size) < 254) {
+            do Screen.setColor(false);
+            do Screen.drawCircle(x, y, size);
+            let y = y + 2;
+            do Screen.setColor(true);
+            do Screen.drawCircle(x, y, size);
+        }
+        else {
+            do Screen.setColor(false);
+            do Screen.drawCircle(x, y, size);
+            let y = size + 1;
+            do Screen.setColor(true);
+            do Screen.drawCircle(x, y, size);
+        }
+        return;
+    }
+
+    method void reset() {
+        do Screen.setColor(false);
+        do Screen.drawCircle(x, y, size);
+        let y = y - size;
+        do Screen.setColor(true);
+        do Screen.drawCircle(x, y, size);
+        return;
+    }
+
+    method int getY() {
+        return y;
+    }
+}

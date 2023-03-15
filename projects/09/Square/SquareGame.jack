@@ -18,12 +18,14 @@ class SquareGame {
    field Square square; // the square of this game
    field int direction; // the square's current direction: 
                         // 0=none, 1=up, 2=down, 3=left, 4=right
+   field Circle circle;
 
    /** Constructs a new Square Game. */
    constructor SquareGame new() {
       // Creates a 30 by 30 pixels square and positions it at the top-left
       // of the screen.
       let square = Square.new(0, 0, 30);
+      let circle = Circle.new(100, 100, 11);
       let direction = 0;  // initial state is no movement
       return this;
    }
@@ -45,6 +47,14 @@ class SquareGame {
       return;
    }
 
+   method void moveCircle() {
+      var int ypos;
+
+      do circle.moveDown();
+      do Sys.wait(5);
+      return;
+   }
+
    /** Runs the game: handles the user's inputs and moves the square accordingly */
    method void run() {
       var char key;  // the key currently pressed by the user
@@ -56,6 +66,7 @@ class SquareGame {
          while (key = 0) {
             let key = Keyboard.keyPressed();
             do moveSquare();
+            do moveCircle();
          }
          if (key = 81)  { let exit = true; }     // q key
          if (key = 90)  { do square.decSize(); } // z key
@@ -69,6 +80,7 @@ class SquareGame {
          while (~(key = 0)) {
             let key = Keyboard.keyPressed();
             do moveSquare();
+            do moveCircle();
          }
      } // while
      return;
