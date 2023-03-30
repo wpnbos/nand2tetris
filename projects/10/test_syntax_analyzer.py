@@ -10,8 +10,6 @@ example_dirs = [Path(__file__).parent.joinpath(dir_) for dir_ in example_program
 
 def get_jack_files():
     for program_dir in example_dirs:
-        if "Array" in str(program_dir) or "Expression" in str(program_dir):
-            continue
         for jack_file in program_dir.glob("*.jack"):
             yield pytest.param(jack_file, id=f"{program_dir.name}/{jack_file.name}")
 
@@ -37,5 +35,5 @@ def test_creates_correct_xml(jack_file: Path):
     )
     generated_xml = syntax_analyzer.generate_xml(jack_file.read_text()).splitlines()
     for i, expected_line in enumerate(expected_xml):
-        print(expected_line)
+        print(expected_line, "\t", generated_xml[i])
         assert generated_xml[i] == expected_line.strip()

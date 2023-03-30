@@ -80,13 +80,12 @@ def tokenize(program: str) -> list[Token]:
 def handle_class_token(
     tokens: list[Token], xml: Optional[list[str]] = None
 ) -> list[str]:
-    print("class")
     if xml is None:
         xml = []
     xml.append("<class>")
     class_keyword, name_identifier, opening_bracket, *tokens = tokens
     for token in (class_keyword, name_identifier, opening_bracket):
-        xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+        xml.append(format_token(token))
     token = tokens[0]
     while token.text != "}":
         if token.text in ("static", "field"):
@@ -99,9 +98,7 @@ def handle_class_token(
             token = tokens[0]
 
     closing_bracket_token, *tokens = tokens
-    xml.append(
-        f"<{closing_bracket_token.type_.name}> {closing_bracket_token.text} </{closing_bracket_token.type_.name}>"
-    )
+    xml.append(format_token(closing_bracket_token))
     xml.append("</class>")
     return xml
 
@@ -110,20 +107,17 @@ def handle_class_var_dec(
     tokens: list[Token], xml: list[str]
 ) -> tuple[list[Token], list[str]]:
     xml.append("<classVarDec>")
-    print("class var")
     var_keyword, type_keyword, name_identifier, *tokens = tokens
     for token in (var_keyword, type_keyword, name_identifier):
-        xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+        xml.append(format_token(token))
     token = tokens[0]
     while token.text != ";":
         comma_symbol, name_identifier, *tokens = tokens
         for token in (comma_symbol, name_identifier):
-            xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+            xml.append(format_token(token))
         token = tokens[0]
     semi_colon_token, *tokens = tokens
-    xml.append(
-        f"<{semi_colon_token.type_.name}> {semi_colon_token.text} </{semi_colon_token.type_.name}>"
-    )
+    xml.append(format_token(semi_colon_token))
     xml.append("</classVarDec>")
     return tokens, xml
 
@@ -131,11 +125,10 @@ def handle_class_var_dec(
 def handle_subroutine_dec(
     tokens: list[Token], xml: list[str]
 ) -> tuple[list[Token], list[str]]:
-    print("subroutine_dec")
     xml.append("<subroutineDec>")
     method_keyword, type_keyword, name_identifier, opening_bracket, *tokens = tokens
     for token in (method_keyword, type_keyword, name_identifier, opening_bracket):
-        xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+        xml.append(format_token(token))
 
     # Handle parameter list
     xml.append("<parameterList>")
@@ -143,20 +136,16 @@ def handle_subroutine_dec(
     while token.text != ")":
         if token.text == ",":
             comma_token, *tokens = tokens
-            xml.append(
-                f"<{comma_token.type_.name}> {comma_token.text} </{comma_token.type_.name}>"
-            )
+            xml.append(format_token(comma_token))
         else:
             type_keyword, name_identifier, *tokens = tokens
             for token in (type_keyword, name_identifier):
-                xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+                xml.append(format_token(token))
         token = tokens[0]
     # Closing bracket
     xml.append("</parameterList>")
     closing_bracket_token, *tokens = tokens
-    xml.append(
-        f"<{closing_bracket_token.type_.name}> {closing_bracket_token.text} </{closing_bracket_token.type_.name}>"
-    )
+    xml.append(format_token(closing_bracket_token))
     # Handle subroutine body
     tokens, xml = handle_subroutine_body(tokens, xml)
     xml.append("</subroutineDec>")
@@ -167,11 +156,8 @@ def handle_subroutine_body(
     tokens: list[Token], xml: list[str]
 ) -> tuple[list[Token], list[str]]:
     xml.append("<subroutineBody>")
-    print("subroutine")
     opening_bracket, *tokens = tokens
-    xml.append(
-        f"<{opening_bracket.type_.name}> {opening_bracket.text} </{opening_bracket.type_.name}>"
-    )
+    xml.append(format_token(opening_bracket))
     token = tokens[0]
     if not token.text == "}":
         while token.text == "var":
@@ -185,9 +171,7 @@ def handle_subroutine_body(
         token = tokens[0]
     closing_bracket_symbol, *tokens = tokens
     xml.append("</statements>")
-    xml.append(
-        f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-    )
+    xml.append(format_token(closing_bracket_symbol))
     xml.append("</subroutineBody>")
     return tokens, xml
 
@@ -195,26 +179,18 @@ def handle_subroutine_body(
 def handle_statement(
     tokens: list[Token], xml: list[str]
 ) -> tuple[list[Token], list[str]]:
-    print("statement")
-    print("\n".join(xml[-5:]))
-    print()
     statement_token, *tokens = tokens
     if statement_token.text == "let":
-        print("let")
         xml.append("<letStatement>")
         name_identifier, *tokens = tokens
         for token in (statement_token, name_identifier):
-            xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+            xml.append(format_token(token))
         if tokens[0].text == "[":
             opening_bracket, *tokens = tokens
-            xml.append(
-                f"<{opening_bracket.type_.name}> {opening_bracket.text} </{opening_bracket.type_.name}>"
-            )
+            xml.append(format_token(opening_bracket))
             tokens, xml = handle_expression(tokens, xml)
             closing_bracket, *tokens = tokens
-            xml.append(
-                f"<{closing_bracket.type_.name}> {closing_bracket.text} </{closing_bracket.type_.name}>"
-            )
+            xml.append(format_token(closing_bracket))
         eq_symbol, *tokens = tokens
         xml.append(
             f"<{eq_symbol.type_.name}> {eq_symbol.text} </{eq_symbol.type_.name}>"
@@ -222,26 +198,19 @@ def handle_statement(
         # Handle expression
         tokens, xml = handle_expression(tokens, xml)
         semicolon_token, *tokens = tokens
-        xml.append(
-            f"<{semicolon_token.type_.name}> {semicolon_token.text} </{semicolon_token.type_.name}>"
-        )
+        xml.append(format_token(semicolon_token))
         xml.append("</letStatement>")
     elif statement_token.text == "if":
-        print("if")
         xml.append("<ifStatement>")
         opening_bracket_symbol, *tokens = tokens
         for token in (statement_token, opening_bracket_symbol):
-            xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+            xml.append(format_token(token))
         # Handle expression
         tokens, xml = handle_expression(tokens, xml)
         closing_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(closing_bracket_symbol))
         opening_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{opening_bracket_symbol.type_.name}> {opening_bracket_symbol.text} </{opening_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(opening_bracket_symbol))
         # Handle statements
         token = tokens[0]
         xml.append("<statements>")
@@ -250,14 +219,12 @@ def handle_statement(
             token = tokens[0]
         xml.append("</statements>")
         closing_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(closing_bracket_symbol))
         if tokens[0].text == "else":
             # Else statement
             else_keyword, opening_bracket, *tokens = tokens
             for token in (else_keyword, opening_bracket):
-                xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+                xml.append(format_token(token))
             # Handle statements
             token = tokens[0]
             xml.append("<statements>")
@@ -266,26 +233,19 @@ def handle_statement(
                 token = tokens[0]
             xml.append("</statements>")
             closing_bracket_symbol, *tokens = tokens
-            xml.append(
-                f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-            )
+            xml.append(format_token(closing_bracket_symbol))
         xml.append("</ifStatement>")
     elif statement_token.text == "while":
-        print("while")
         xml.append("<whileStatement>")
         opening_bracket_symbol, *tokens = tokens
         for token in (statement_token, opening_bracket_symbol):
-            xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+            xml.append(format_token(token))
         # Handle expression
         tokens, xml = handle_expression(tokens, xml)
         closing_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(closing_bracket_symbol))
         opening_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{opening_bracket_symbol.type_.name}> {opening_bracket_symbol.text} </{opening_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(opening_bracket_symbol))
         # Handle statements
         token = tokens[0]
         xml.append("<statements>")
@@ -294,70 +254,45 @@ def handle_statement(
             token = tokens[0]
         xml.append("</statements>")
         closing_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(closing_bracket_symbol))
         xml.append("</whileStatement>")
     elif statement_token.text == "do":
-        print("do")
         xml.append("<doStatement>")
-        xml.append(
-            f"<{statement_token.type_.name}> {statement_token.text} </{statement_token.type_.name}>"
-        )
+        xml.append(format_token(statement_token))
         # Handle subroutine call
         identifier_token, *tokens = tokens
         if tokens[0].text == ".":
             dot_symbol, method_identifier, *tokens = tokens
             for token in (identifier_token, dot_symbol, method_identifier):
-                xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+                xml.append(format_token(token))
         else:
-            xml.append(
-                f"<{identifier_token.type_.name}> {identifier_token.text} </{identifier_token.type_.name}>"
-            )
+            xml.append(format_token(identifier_token))
         # Handle expression list
         opening_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{opening_bracket_symbol.type_.name}> {opening_bracket_symbol.text} </{opening_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(opening_bracket_symbol))
         xml.append("<expressionList>")
         token = tokens[0]
         while token.text != ")":
             if token.text == ",":
                 comma_symbol, *tokens = tokens
-                xml.append(
-                    f"<{comma_symbol.type_.name}> {comma_symbol.text} </{comma_symbol.type_.name}>"
-                )
+                xml.append(format_token(comma_symbol))
             tokens, xml = handle_expression(tokens, xml)
             token = tokens[0]
         xml.append("</expressionList>")
         closing_bracket_symbol, *tokens = tokens
-        xml.append(
-            f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-        )
+        xml.append(format_token(closing_bracket_symbol))
         semicolon_token, *tokens = tokens
-        xml.append(
-            f"<{semicolon_token.type_.name}> {semicolon_token.text} </{semicolon_token.type_.name}>"
-        )
+        xml.append(format_token(semicolon_token))
         xml.append("</doStatement>")
     elif statement_token.text == "return":
-        print("return")
         xml.append("<returnStatement>")
-        xml.append(
-            f"<{statement_token.type_.name}> {statement_token.text} </{statement_token.type_.name}>"
-        )
-        print(tokens[0])
+        xml.append(format_token(statement_token))
         if not tokens[0].text == ";":
             tokens, xml = handle_expression(tokens, xml)
-        print("return else")
         semicolon_token, *tokens = tokens
-        xml.append(
-            f"<{semicolon_token.type_.name}> {semicolon_token.text} </{semicolon_token.type_.name}>"
-        )
+        xml.append(format_token(semicolon_token))
         xml.append("</returnStatement>")
     else:
-        print("asdfasdf")
-        print("\n".join(xml[-18:]))
-        print()
         raise ValueError(f"{statement_token.text} is not a valid statement token")
 
     return tokens, xml
@@ -370,45 +305,29 @@ def handle_subroutine_call(
     if tokens[0].text == ".":
         dot_symbol, method_identifier, *tokens = tokens
         for token in (identifier_token, dot_symbol, method_identifier):
-            xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+            xml.append(format_token(token))
     else:
-        xml.append(
-            f"<{identifier_token.type_.name}> {identifier_token.text} </{identifier_token.type_.name}>"
-        )
+        xml.append(format_token(identifier_token))
     # Handle expression list
     opening_bracket_symbol, *tokens = tokens
-    xml.append(
-        f"<{opening_bracket_symbol.type_.name}> {opening_bracket_symbol.text} </{opening_bracket_symbol.type_.name}>"
-    )
+    xml.append(format_token(opening_bracket_symbol))
     xml.append("<expressionList>")
     token = tokens[0]
     while token.text != ")":
         if token.text == ",":
             comma_symbol, *tokens = tokens
-            xml.append(
-                f"<{comma_symbol.type_.name}> {comma_symbol.text} </{comma_symbol.type_.name}>"
-            )
+            xml.append(format_token(comma_symbol))
         tokens, xml = handle_expression(tokens, xml)
         token = tokens[0]
     xml.append("</expressionList>")
     closing_bracket_symbol, *tokens = tokens
-    xml.append(
-        f"<{closing_bracket_symbol.type_.name}> {closing_bracket_symbol.text} </{closing_bracket_symbol.type_.name}>"
-    )
+    xml.append(format_token(closing_bracket_symbol))
     return tokens, xml
 
 
-def handle_expression(
-    tokens: list[Token], xml: list[str]
-) -> tuple[list[Token], list[str]]:
-    print("expression")
-    print(xml[-10:])
-    xml.append("<expression>")
+def handle_term(tokens: list[Token], xml: list[str]) -> tuple[list[Token], list[str]]:
     xml.append("<term>")
-    # Handle term
-
     token, *tokens = tokens
-    keyword_constants = ("true", "false", "null", "this")
     if token.type_ == TokenType.integerConstant:
         # Integer constant
         xml.append(f"<integerConstant> {token.text} </integerConstant>")
@@ -427,21 +346,40 @@ def handle_expression(
             # Array
             # let a[1] = a[2];
             opening_bracket, *tokens = tokens
-            xml.append(
-                f"<{opening_bracket.type_.name}> {opening_bracket.text} </{opening_bracket.type_.name}>"
-            )
+            for token_ in (token, opening_bracket):
+                xml.append(format_token(token_))
             tokens, xml = handle_expression(tokens, xml)
             closing_bracket, *tokens = tokens
-            xml.append(
-                f"<{closing_bracket.type_.name}> {closing_bracket.text} </{closing_bracket.type_.name}>"
-            )
-            pass
-    elif token.type_.name != "identifier" and token.text not in keyword_constants:
-        print("\n".join(xml[-16:]))
-        raise ValueError(f"{token} is not a valid identifier token")
+            xml.append(format_token(closing_bracket))
+        else:
+            # Just a var
+            xml.append(format_token(token))
+    elif token.text == "(":
+        xml.append(format_token(token))
+        tokens, xml = handle_expression(tokens, xml)
+        closing_bracket, *tokens = tokens
+        xml.append(format_token(closing_bracket))
+    elif token.text in ("-", "~"):  # Unary ops
+        xml.append(format_token(token))
+        tokens, xml = handle_term(tokens, xml)
     else:
-        xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+        xml.append(format_token(token))
+    token = tokens[0]
+    ops = ["+", "-", "*", "/", "&", "|", "<", ">", "=", "&amp;", "&gt;", "&lt;"]
     xml.append("</term>")
+    if token.text in ops:
+        op_token, *tokens = tokens
+        xml.append(format_token(op_token))
+        tokens, xml = handle_term(tokens, xml)
+    return tokens, xml
+
+
+def handle_expression(
+    tokens: list[Token], xml: list[str]
+) -> tuple[list[Token], list[str]]:
+    xml.append("<expression>")
+    # Handle term
+    tokens, xml = handle_term(tokens, xml)
     xml.append("</expression>")
     return tokens, xml
 
@@ -449,21 +387,18 @@ def handle_expression(
 def handle_var_dec(
     tokens: list[Token], xml: list[str]
 ) -> tuple[list[Token], list[str]]:
-    print("var dec")
     xml.append("<varDec>")
     var_keyword, type_keyword, name_identifier, *tokens = tokens
     for token in (var_keyword, type_keyword, name_identifier):
-        xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+        xml.append(format_token(token))
     token = tokens[0]
     while token.text != ";":
         comma_symbol, name_identifier, *tokens = tokens
         for token in (comma_symbol, name_identifier):
-            xml.append(f"<{token.type_.name}> {token.text} </{token.type_.name}>")
+            xml.append(format_token(token))
         token = tokens[0]
     semi_colon_token, *tokens = tokens
-    xml.append(
-        f"<{semi_colon_token.type_.name}> {semi_colon_token.text} </{semi_colon_token.type_.name}>"
-    )
+    xml.append(format_token(semi_colon_token))
     xml.append("</varDec>")
     return tokens, xml
 
@@ -471,6 +406,10 @@ def handle_var_dec(
 def generate_xml(program: str) -> str:
     result = handle_class_token(tokenize(program))
     return "\n".join(result)
+
+
+def format_token(token: Token) -> str:
+    return f"<{token.type_.name}> {token.text} </{token.type_.name}>"
 
 
 if __name__ == "__main__":
