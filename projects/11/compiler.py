@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional
+from typing import Generator, Optional
 
 from lexical_elements import keywords, symbols
 
@@ -20,6 +23,80 @@ class TokenType(Enum):
 class Token:
     text: str
     type_: TokenType
+
+
+kinds = ("static", "field", "local", "arg")
+
+
+@dataclass
+class Symbol:
+    name: str
+    type_: str
+    kind: str
+    index: int
+
+    def __post_init__(self):
+        types = ("int", "boolean", "char")
+        if self.type_ not in types:
+            if not self.type_.title()[0] == self.type_[0]:
+                raise ValueError(f"Type is not one of {types} or a valid class name")
+        if self.kind not in kinds:
+            raise ValueError(f"Kind is not one of {kinds}")
+
+
+class SymbolTable:
+    def __init__(
+        self,
+        table: Optional[dict[str, Symbol]] = None,
+        counts: Optional[dict[str, int]] = None,
+    ) -> None:
+        self.table = table or {}
+        self.counts = counts or defaultdict(int)
+
+    def add_symbol(self, name: str, type_: str, kind: str) -> SymbolTable:
+        self.table[name] = Symbol(
+            name=name, type_=type_, kind=kind, index=self.counts[kind]
+        )
+        self.counts[kind] += 1
+        return SymbolTable(self.table, self.counts)
+
+    def __iter__(self) -> Generator:
+        yield from list(self.table.keys())
+
+
+def generate_symbol_table(
+    tokens: list[Token], parent_table: Optional[dict[str, Token]] = None
+) -> SymbolTable:
+    parent_table = parent_table or {}
+    symbol_table = SymbolTable()
+    for i, token in enumerate(tokens):
+        if token.text in ("constructor", "return"):
+            break
+        if not token.type_ == TokenType.identifier:
+            continue
+        if token.text in parent_table:
+            continue
+        if tokens[i + 1].type_ == TokenType.identifier:
+            # This is a class type token
+            continue
+        type_token = tokens[i - 1]
+        if type_token.text == "do":
+            # Identifier is a subroutine name
+            continue
+        if type_token.text == "class":
+            continue
+        if token.text not in symbol_table:
+            # Add symbol to table
+            kind = (
+                tokens[i - 2].text
+                if tokens[i - 2].text in kinds
+                else "local"
+                if tokens[i - 2].text == "var"
+                else "arg"
+            )
+            symbol_table.add_symbol(token.text, type_=type_token.text, kind=kind)
+
+    return symbol_table
 
 
 def strip_comments(program: str) -> str:
@@ -78,10 +155,14 @@ def tokenize(program: str) -> list[Token]:
 
 
 def handle_class_token(
-    tokens: list[Token], xml: Optional[list[str]] = None
+    tokens: list[Token],
+    xml: Optional[list[str]] = None,
+    symbol_table: Optional[SymbolTable] = None,
 ) -> list[str]:
     if xml is None:
         xml = []
+    if symbol_table is None:
+        symbol_table = generate_symbol_table(tokens)
     xml.append("<class>")
     class_keyword, name_identifier, opening_bracket, *tokens = tokens
     for token in (class_keyword, name_identifier, opening_bracket):
