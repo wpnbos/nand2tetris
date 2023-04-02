@@ -58,7 +58,7 @@ def test_creates_correct_symbol_table_for_class():
             index=6,
         ),
     }
-    assert compiler.generate_symbol_table(tokens).table == expected_table
+    assert compiler.generate_symbol_table("PongGame", tokens).table == expected_table
 
 
 def test_creates_correct_symbol_table_for_subroutine():
@@ -112,26 +112,30 @@ def test_creates_correct_symbol_table_for_subroutine():
         ),
     }
     tokens = compiler.tokenize(subroutine)
-    parent_table = {
-        "x": Symbol(
-            name="x",
-            type_="int",
-            kind="field",
-            index=0,
-        ),
-        "y": Symbol(
-            name="y",
-            type_="int",
-            kind="field",
-            index=1,
-        ),
-        "size": Symbol(
-            name="size",
-            type_="int",
-            kind="field",
-            index=2,
-        ),
-    }
+    parent_table = SymbolTable(
+        class_name="Square",
+        table={
+            "x": Symbol(
+                name="x",
+                type_="int",
+                kind="field",
+                index=0,
+            ),
+            "y": Symbol(
+                name="y",
+                type_="int",
+                kind="field",
+                index=1,
+            ),
+            "size": Symbol(
+                name="size",
+                type_="int",
+                kind="field",
+                index=2,
+            ),
+        },
+    )
     assert (
-        compiler.generate_symbol_table(tokens[3:], parent_table).table == expected_table
+        compiler.generate_subroutine_symbol_table(tokens[3:], parent_table).table
+        == expected_table
     )

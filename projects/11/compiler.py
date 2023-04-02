@@ -47,9 +47,11 @@ class Symbol:
 class SymbolTable:
     def __init__(
         self,
+        class_name: str,
         table: Optional[dict[str, Symbol]] = None,
         counts: Optional[dict[str, int]] = None,
     ) -> None:
+        self.class_name = class_name
         self.table = table or {}
         self.counts = counts or defaultdict(int)
 
@@ -58,23 +60,18 @@ class SymbolTable:
             name=name, type_=type_, kind=kind, index=self.counts[kind]
         )
         self.counts[kind] += 1
-        return SymbolTable(self.table, self.counts)
+        return SymbolTable(self.class_name, self.table, self.counts)
 
     def __iter__(self) -> Generator:
         yield from list(self.table.keys())
 
 
-def generate_symbol_table(
-    tokens: list[Token], parent_table: Optional[dict[str, Token]] = None
-) -> SymbolTable:
-    parent_table = parent_table or {}
-    symbol_table = SymbolTable()
+def generate_symbol_table(class_name: str, tokens: list[Token]) -> SymbolTable:
+    symbol_table = SymbolTable(class_name)
     for i, token in enumerate(tokens):
-        if token.text in ("constructor", "return"):
+        if token.text == "constructor":
             break
         if not token.type_ == TokenType.identifier:
-            continue
-        if token.text in parent_table:
             continue
         if tokens[i + 1].type_ == TokenType.identifier:
             # This is a class type token
@@ -87,16 +84,58 @@ def generate_symbol_table(
             continue
         if token.text not in symbol_table:
             # Add symbol to table
-            kind = (
-                tokens[i - 2].text
-                if tokens[i - 2].text in kinds
-                else "local"
-                if tokens[i - 2].text == "var"
-                else "arg"
-            )
+            kind = tokens[i - 2].text
+            if kind not in ("static", "field"):
+                raise ValueError("Kind is not one of {static, field}")
             symbol_table.add_symbol(token.text, type_=type_token.text, kind=kind)
 
     return symbol_table
+
+
+class SubroutineTable(SymbolTable):
+    def __init__(
+        self,
+        parent_table: SymbolTable,
+        table: Optional[dict[str, Symbol]] = None,
+        counts: Optional[dict[str, int]] = None,
+    ) -> None:
+        super().__init__(parent_table.class_name, table, counts)
+        self.parent = parent_table
+
+    def __iter__(self) -> Generator:
+        yield from list(self.table.keys()) + list(self.parent.table.keys())
+
+
+def generate_subroutine_symbol_table(
+    tokens: list[Token],
+    parent_table: SymbolTable,
+) -> SubroutineTable:
+    subroutine_table = SubroutineTable(parent_table)
+    subroutine_table.table = {
+        "this": Symbol(
+            name="this",
+            type_=subroutine_table.parent.class_name,
+            kind="arg",
+            index=0,
+        )
+    }
+    subroutine_table.counts["arg"] += 1
+    for i, token in enumerate(tokens):
+        if token.text == "return":
+            break
+        if not token.type_ == TokenType.identifier:
+            continue
+        type_token = tokens[i - 1]
+        if type_token.text == "do":
+            # Identifier is a subroutine name
+            continue
+        if token.text not in subroutine_table:
+            # Add symbol to table
+            kind = tokens[i - 2].text
+            kind = "arg" if kind != "var" else "local"
+            subroutine_table.add_symbol(token.text, type_=type_token.text, kind=kind)
+
+    return subroutine_table
 
 
 def strip_comments(program: str) -> str:
@@ -161,10 +200,10 @@ def handle_class_token(
 ) -> list[str]:
     if xml is None:
         xml = []
-    if symbol_table is None:
-        symbol_table = generate_symbol_table(tokens)
     xml.append("<class>")
     class_keyword, name_identifier, opening_bracket, *tokens = tokens
+    if symbol_table is None:
+        symbol_table = generate_symbol_table(name_identifier.text, tokens)
     for token in (class_keyword, name_identifier, opening_bracket):
         xml.append(format_token(token))
     token = tokens[0]
