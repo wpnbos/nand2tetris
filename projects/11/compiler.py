@@ -25,7 +25,7 @@ class Token:
     type_: TokenType
 
 
-kinds = ("static", "field", "local", "arg")
+kinds = ("static", "field", "var", "arg")
 
 
 @dataclass
@@ -43,6 +43,9 @@ class Symbol:
         if self.kind not in kinds:
             raise ValueError(f"Kind is not one of {kinds}")
 
+    def __str__(self) -> str:
+        return f"<{self.name},{self.type_},{self.kind},{self.index}>"
+
 
 class SymbolTable:
     def __init__(
@@ -56,6 +59,10 @@ class SymbolTable:
         self.counts = counts or defaultdict(int)
 
     def add_symbol(self, name: str, type_: str, kind: str) -> SymbolTable:
+        # print(
+        #     f"Adding symbol {name} with kind {kind}, count for that kind:",
+        #     self.counts[kind],
+        # )
         self.table[name] = Symbol(
             name=name, type_=type_, kind=kind, index=self.counts[kind]
         )
@@ -65,11 +72,15 @@ class SymbolTable:
     def __iter__(self) -> Generator:
         yield from list(self.table.keys())
 
+    def __str__(self) -> str:
+        rows = "\n".join([str(row) for row in self.table.values()])
+        return f"{self.class_name}\n{rows}"
+
 
 def generate_symbol_table(class_name: str, tokens: list[Token]) -> SymbolTable:
     symbol_table = SymbolTable(class_name)
     for i, token in enumerate(tokens):
-        if token.text == "constructor":
+        if token.text in ("constructor", "function"):
             break
         if not token.type_ == TokenType.identifier:
             continue
@@ -86,9 +97,11 @@ def generate_symbol_table(class_name: str, tokens: list[Token]) -> SymbolTable:
             # Add symbol to table
             kind = tokens[i - 2].text
             if kind not in ("static", "field"):
+                print(token)
                 raise ValueError("Kind is not one of {static, field}")
             symbol_table.add_symbol(token.text, type_=type_token.text, kind=kind)
 
+    print(symbol_table)
     return symbol_table
 
 
@@ -96,46 +109,30 @@ class SubroutineTable(SymbolTable):
     def __init__(
         self,
         parent_table: SymbolTable,
+        subroutine_name: str,
         table: Optional[dict[str, Symbol]] = None,
         counts: Optional[dict[str, int]] = None,
     ) -> None:
         super().__init__(parent_table.class_name, table, counts)
+        self.subroutine_name = subroutine_name
+        if not self.table:
+            self.add_symbol(name="this", type_=parent_table.class_name, kind="arg")
         self.parent = parent_table
 
     def __iter__(self) -> Generator:
         yield from list(self.table.keys()) + list(self.parent.table.keys())
 
+    def __getitem__(self, key: str) -> str:
+        symbol = self.table.get(key, None) or self.parent.table.get(key, None)
+        if symbol is None:
+            raise KeyError
+        loc = f"{symbol.kind} {symbol.index}"
+        print(f"Accessing {symbol.name} @", loc)
+        return loc
 
-def generate_subroutine_symbol_table(
-    tokens: list[Token],
-    parent_table: SymbolTable,
-) -> SubroutineTable:
-    subroutine_table = SubroutineTable(parent_table)
-    subroutine_table.table = {
-        "this": Symbol(
-            name="this",
-            type_=subroutine_table.parent.class_name,
-            kind="arg",
-            index=0,
-        )
-    }
-    subroutine_table.counts["arg"] += 1
-    for i, token in enumerate(tokens):
-        if token.text == "return":
-            break
-        if not token.type_ == TokenType.identifier:
-            continue
-        type_token = tokens[i - 1]
-        if type_token.text == "do":
-            # Identifier is a subroutine name
-            continue
-        if token.text not in subroutine_table:
-            # Add symbol to table
-            kind = tokens[i - 2].text
-            kind = "arg" if kind != "var" else "local"
-            subroutine_table.add_symbol(token.text, type_=type_token.text, kind=kind)
-
-    return subroutine_table
+    def __str__(self) -> str:
+        rows = "\n".join([str(row) for row in self.table.values()])
+        return f"{self.class_name + '.' + self.subroutine_name}\n{rows}"
 
 
 def strip_comments(program: str) -> str:
@@ -203,38 +200,49 @@ def handle_class_token(
     xml.append("<class>")
     class_keyword, name_identifier, opening_bracket, *tokens = tokens
     if symbol_table is None:
-        symbol_table = generate_symbol_table(name_identifier.text, tokens)
+        symbol_table = SymbolTable(class_name=name_identifier.text)
     for token in (class_keyword, name_identifier, opening_bracket):
         xml.append(format_token(token))
     token = tokens[0]
     while token.text != "}":
         if token.text in ("static", "field"):
             # Class var declaration
-            tokens, xml = handle_class_var_dec(tokens, xml)
+            tokens, xml = handle_class_var_dec(tokens, xml, symbol_table)
             token = tokens[0]
         elif token.text in ("constructor", "function", "method"):
             # Subroutine (method) declaration
-            tokens, xml = handle_subroutine_dec(tokens, xml)
+            tokens, xml = handle_subroutine_dec(tokens, xml, symbol_table)
             token = tokens[0]
 
     closing_bracket_token, *tokens = tokens
     xml.append(format_token(closing_bracket_token))
     xml.append("</class>")
+    print(symbol_table)
     return xml
 
 
 def handle_class_var_dec(
-    tokens: list[Token], xml: list[str]
+    tokens: list[Token], xml: list[str], symbol_table: SymbolTable
 ) -> tuple[list[Token], list[str]]:
     xml.append("<classVarDec>")
     var_keyword, type_keyword, name_identifier, *tokens = tokens
     for token in (var_keyword, type_keyword, name_identifier):
         xml.append(format_token(token))
+    symbol_table.add_symbol(
+        name=name_identifier.text,
+        type_=type_keyword.text,
+        kind=var_keyword.text,
+    )
     token = tokens[0]
     while token.text != ";":
         comma_symbol, name_identifier, *tokens = tokens
         for token in (comma_symbol, name_identifier):
             xml.append(format_token(token))
+        symbol_table.add_symbol(
+            name=name_identifier.text,
+            type_=type_keyword.text,
+            kind=var_keyword.text,
+        )
         token = tokens[0]
     semi_colon_token, *tokens = tokens
     xml.append(format_token(semi_colon_token))
@@ -243,13 +251,16 @@ def handle_class_var_dec(
 
 
 def handle_subroutine_dec(
-    tokens: list[Token], xml: list[str]
+    tokens: list[Token], xml: list[str], symbol_table: SymbolTable
 ) -> tuple[list[Token], list[str]]:
     xml.append("<subroutineDec>")
     method_keyword, type_keyword, name_identifier, opening_bracket, *tokens = tokens
     for token in (method_keyword, type_keyword, name_identifier, opening_bracket):
         xml.append(format_token(token))
 
+    subroutine_table = SubroutineTable(
+        parent_table=symbol_table, subroutine_name=name_identifier.text
+    )
     # Handle parameter list
     xml.append("<parameterList>")
     token = tokens[0]
@@ -261,20 +272,28 @@ def handle_subroutine_dec(
             type_keyword, name_identifier, *tokens = tokens
             for token in (type_keyword, name_identifier):
                 xml.append(format_token(token))
+            subroutine_table.add_symbol(
+                name=name_identifier.text,
+                type_=type_keyword.text,
+                kind="arg",
+            )
         token = tokens[0]
     # Closing bracket
     xml.append("</parameterList>")
     closing_bracket_token, *tokens = tokens
     xml.append(format_token(closing_bracket_token))
     # Handle subroutine body
-    tokens, xml = handle_subroutine_body(tokens, xml)
+    tokens, xml, subroutine_table = handle_subroutine_body(
+        tokens, xml, subroutine_table
+    )
     xml.append("</subroutineDec>")
+    print(subroutine_table)
     return tokens, xml
 
 
 def handle_subroutine_body(
-    tokens: list[Token], xml: list[str]
-) -> tuple[list[Token], list[str]]:
+    tokens: list[Token], xml: list[str], subroutine_table: SubroutineTable
+) -> tuple[list[Token], list[str], SubroutineTable]:
     xml.append("<subroutineBody>")
     opening_bracket, *tokens = tokens
     xml.append(format_token(opening_bracket))
@@ -282,22 +301,24 @@ def handle_subroutine_body(
     if not token.text == "}":
         while token.text == "var":
             # Variable declaration
-            tokens, xml = handle_var_dec(tokens, xml)
+            tokens, xml, subroutine_table = handle_var_dec(
+                tokens, xml, subroutine_table
+            )
             token = tokens[0]
     # The rest are statements
     xml.append("<statements>")
     while token.text != "}":
-        tokens, xml = handle_statement(tokens, xml)
+        tokens, xml = handle_statement(tokens, xml, subroutine_table)
         token = tokens[0]
     closing_bracket_symbol, *tokens = tokens
     xml.append("</statements>")
     xml.append(format_token(closing_bracket_symbol))
     xml.append("</subroutineBody>")
-    return tokens, xml
+    return tokens, xml, subroutine_table
 
 
 def handle_statement(
-    tokens: list[Token], xml: list[str]
+    tokens: list[Token], xml: list[str], subroutine_table: SubroutineTable
 ) -> tuple[list[Token], list[str]]:
     statement_token, *tokens = tokens
     if statement_token.text == "let":
@@ -305,10 +326,11 @@ def handle_statement(
         name_identifier, *tokens = tokens
         for token in (statement_token, name_identifier):
             xml.append(format_token(token))
+        subroutine_table[name_identifier.text]
         if tokens[0].text == "[":
             opening_bracket, *tokens = tokens
             xml.append(format_token(opening_bracket))
-            tokens, xml = handle_expression(tokens, xml)
+            tokens, xml = handle_expression(tokens, xml, subroutine_table)
             closing_bracket, *tokens = tokens
             xml.append(format_token(closing_bracket))
         eq_symbol, *tokens = tokens
@@ -316,7 +338,7 @@ def handle_statement(
             f"<{eq_symbol.type_.name}> {eq_symbol.text} </{eq_symbol.type_.name}>"
         )
         # Handle expression
-        tokens, xml = handle_expression(tokens, xml)
+        tokens, xml = handle_expression(tokens, xml, subroutine_table)
         semicolon_token, *tokens = tokens
         xml.append(format_token(semicolon_token))
         xml.append("</letStatement>")
@@ -326,7 +348,7 @@ def handle_statement(
         for token in (statement_token, opening_bracket_symbol):
             xml.append(format_token(token))
         # Handle expression
-        tokens, xml = handle_expression(tokens, xml)
+        tokens, xml = handle_expression(tokens, xml, subroutine_table)
         closing_bracket_symbol, *tokens = tokens
         xml.append(format_token(closing_bracket_symbol))
         opening_bracket_symbol, *tokens = tokens
@@ -335,7 +357,7 @@ def handle_statement(
         token = tokens[0]
         xml.append("<statements>")
         while token.text != "}":
-            tokens, xml = handle_statement(tokens, xml)
+            tokens, xml = handle_statement(tokens, xml, subroutine_table)
             token = tokens[0]
         xml.append("</statements>")
         closing_bracket_symbol, *tokens = tokens
@@ -349,7 +371,7 @@ def handle_statement(
             token = tokens[0]
             xml.append("<statements>")
             while token.text != "}":
-                tokens, xml = handle_statement(tokens, xml)
+                tokens, xml = handle_statement(tokens, xml, subroutine_table)
                 token = tokens[0]
             xml.append("</statements>")
             closing_bracket_symbol, *tokens = tokens
@@ -361,7 +383,7 @@ def handle_statement(
         for token in (statement_token, opening_bracket_symbol):
             xml.append(format_token(token))
         # Handle expression
-        tokens, xml = handle_expression(tokens, xml)
+        tokens, xml = handle_expression(tokens, xml, subroutine_table)
         closing_bracket_symbol, *tokens = tokens
         xml.append(format_token(closing_bracket_symbol))
         opening_bracket_symbol, *tokens = tokens
@@ -370,7 +392,7 @@ def handle_statement(
         token = tokens[0]
         xml.append("<statements>")
         while token.text != "}":
-            tokens, xml = handle_statement(tokens, xml)
+            tokens, xml = handle_statement(tokens, xml, subroutine_table)
             token = tokens[0]
         xml.append("</statements>")
         closing_bracket_symbol, *tokens = tokens
@@ -396,7 +418,7 @@ def handle_statement(
             if token.text == ",":
                 comma_symbol, *tokens = tokens
                 xml.append(format_token(comma_symbol))
-            tokens, xml = handle_expression(tokens, xml)
+            tokens, xml = handle_expression(tokens, xml, subroutine_table)
             token = tokens[0]
         xml.append("</expressionList>")
         closing_bracket_symbol, *tokens = tokens
@@ -408,7 +430,7 @@ def handle_statement(
         xml.append("<returnStatement>")
         xml.append(format_token(statement_token))
         if not tokens[0].text == ";":
-            tokens, xml = handle_expression(tokens, xml)
+            tokens, xml = handle_expression(tokens, xml, subroutine_table)
         semicolon_token, *tokens = tokens
         xml.append(format_token(semicolon_token))
         xml.append("</returnStatement>")
@@ -419,7 +441,7 @@ def handle_statement(
 
 
 def handle_subroutine_call(
-    tokens: list[Token], xml: list[str]
+    tokens: list[Token], xml: list[str], subroutine_table: SubroutineTable
 ) -> tuple[list[Token], list[str]]:
     identifier_token, *tokens = tokens
     if tokens[0].text == ".":
@@ -437,7 +459,7 @@ def handle_subroutine_call(
         if token.text == ",":
             comma_symbol, *tokens = tokens
             xml.append(format_token(comma_symbol))
-        tokens, xml = handle_expression(tokens, xml)
+        tokens, xml = handle_expression(tokens, xml, subroutine_table)
         token = tokens[0]
     xml.append("</expressionList>")
     closing_bracket_symbol, *tokens = tokens
@@ -445,7 +467,9 @@ def handle_subroutine_call(
     return tokens, xml
 
 
-def handle_term(tokens: list[Token], xml: list[str]) -> tuple[list[Token], list[str]]:
+def handle_term(
+    tokens: list[Token], xml: list[str], subroutine_table: SubroutineTable
+) -> tuple[list[Token], list[str]]:
     xml.append("<term>")
     token, *tokens = tokens
     if token.type_ == TokenType.integerConstant:
@@ -461,27 +485,30 @@ def handle_term(tokens: list[Token], xml: list[str]) -> tuple[list[Token], list[
         # Must be a var, array element, or subroutine call
         next_token = tokens[0]
         if next_token.text in (".", "("):
-            tokens, xml = handle_subroutine_call([token] + tokens, xml)
+            tokens, xml = handle_subroutine_call(
+                [token] + tokens, xml, subroutine_table
+            )
         elif next_token.text == "[":
             # Array
             # let a[1] = a[2];
             opening_bracket, *tokens = tokens
             for token_ in (token, opening_bracket):
                 xml.append(format_token(token_))
-            tokens, xml = handle_expression(tokens, xml)
+            tokens, xml = handle_expression(tokens, xml, subroutine_table)
             closing_bracket, *tokens = tokens
             xml.append(format_token(closing_bracket))
         else:
             # Just a var
             xml.append(format_token(token))
+            subroutine_table[token.text]
     elif token.text == "(":
         xml.append(format_token(token))
-        tokens, xml = handle_expression(tokens, xml)
+        tokens, xml = handle_expression(tokens, xml, subroutine_table)
         closing_bracket, *tokens = tokens
         xml.append(format_token(closing_bracket))
     elif token.text in ("-", "~"):  # Unary ops
         xml.append(format_token(token))
-        tokens, xml = handle_term(tokens, xml)
+        tokens, xml = handle_term(tokens, xml, subroutine_table)
     else:
         xml.append(format_token(token))
     token = tokens[0]
@@ -490,37 +517,45 @@ def handle_term(tokens: list[Token], xml: list[str]) -> tuple[list[Token], list[
     if token.text in ops:
         op_token, *tokens = tokens
         xml.append(format_token(op_token))
-        tokens, xml = handle_term(tokens, xml)
+        tokens, xml = handle_term(tokens, xml, subroutine_table)
     return tokens, xml
 
 
 def handle_expression(
-    tokens: list[Token], xml: list[str]
+    tokens: list[Token], xml: list[str], subroutine_table: SubroutineTable
 ) -> tuple[list[Token], list[str]]:
     xml.append("<expression>")
     # Handle term
-    tokens, xml = handle_term(tokens, xml)
+    tokens, xml = handle_term(tokens, xml, subroutine_table)
     xml.append("</expression>")
     return tokens, xml
 
 
 def handle_var_dec(
-    tokens: list[Token], xml: list[str]
-) -> tuple[list[Token], list[str]]:
+    tokens: list[Token], xml: list[str], subroutine_table: SubroutineTable
+) -> tuple[list[Token], list[str], SubroutineTable]:
     xml.append("<varDec>")
     var_keyword, type_keyword, name_identifier, *tokens = tokens
     for token in (var_keyword, type_keyword, name_identifier):
         xml.append(format_token(token))
+    subroutine_table.add_symbol(
+        name=name_identifier.text, type_=type_keyword.text, kind=var_keyword.text
+    )
     token = tokens[0]
     while token.text != ";":
         comma_symbol, name_identifier, *tokens = tokens
         for token in (comma_symbol, name_identifier):
             xml.append(format_token(token))
+        subroutine_table.add_symbol(
+            name=name_identifier.text,
+            type_=type_keyword.text,
+            kind=var_keyword.text,
+        )
         token = tokens[0]
     semi_colon_token, *tokens = tokens
     xml.append(format_token(semi_colon_token))
     xml.append("</varDec>")
-    return tokens, xml
+    return tokens, xml, subroutine_table
 
 
 def compile_(program: str) -> str:
