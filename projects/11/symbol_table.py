@@ -30,10 +30,12 @@ class SymbolTable:
         class_name: str,
         table: Optional[dict[str, Symbol]] = None,
         counts: Optional[dict[str, int]] = None,
+        label_generator: Optional[LabelGenerator] = None,
     ) -> None:
         self.class_name = class_name
         self.table = table or {}
         self.counts = counts or defaultdict(int)
+        self.label_generator = label_generator or LabelGenerator()
 
     def add_symbol(self, name: str, type_: str, kind: str) -> SymbolTable:
         # print(
@@ -54,24 +56,35 @@ class SymbolTable:
         return f"{self.class_name}\n{rows}"
 
 
+class LabelGenerator:
+    def __init__(self, label_count: int = 0) -> None:
+        self.label_count = label_count
+
+    def generate_label(self) -> str:
+        self.label_count += 1
+        return f"L{self.label_count}"
+
+
 class SubroutineTable(SymbolTable):
     def __init__(
         self,
         parent_table: SymbolTable,
         subroutine_name: str,
         is_method: bool = True,
+        is_void: bool = False,
         table: Optional[dict[str, Symbol]] = None,
         counts: Optional[dict[str, int]] = None,
     ) -> None:
         super().__init__(parent_table.class_name, table, counts)
         self.subroutine_name = subroutine_name
+        self.is_void = is_void
         if not self.table and is_method:
             self.add_symbol(name="this", type_=parent_table.class_name, kind="arg")
         self.parent = parent_table
 
     @property
     def var_count(self) -> int:
-        return [symbol.kind for symbol in self].count("var")
+        return [symbol.kind for symbol in self.table.values()].count("var")
 
     def __iter__(self) -> Generator:
         yield from list(self.table.keys()) + list(self.parent.table.keys())
@@ -80,7 +93,7 @@ class SubroutineTable(SymbolTable):
         symbol = self.table.get(key, None) or self.parent.table.get(key, None)
         if symbol is None:
             raise KeyError
-        loc = f"{symbol.kind} {symbol.index}"
+        loc = f"{symbol.kind if not symbol.kind == 'var' else 'local'} {symbol.index}"
         print(f"Accessing {symbol.name} @", loc)
         return loc
 

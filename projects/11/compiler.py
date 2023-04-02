@@ -83,6 +83,7 @@ def handle_subroutine_dec(
         parent_table=symbol_table,
         subroutine_name=name_identifier.text,
         is_method=is_method,
+        is_void=(type_keyword.text == "void"),
     )
     # Handle parameter list
     xml.append("<parameterList>")
@@ -152,7 +153,6 @@ def handle_statement(
         name_identifier, *tokens = tokens
         for token in (statement_token, name_identifier):
             xml.append(format_token(token))
-        subroutine_table[name_identifier.text]
         if tokens[0].text == "[":
             opening_bracket, *tokens = tokens
             xml.append(format_token(opening_bracket))
@@ -167,8 +167,11 @@ def handle_statement(
         tokens, xml = handle_expression(tokens, xml, subroutine_table)
         semicolon_token, *tokens = tokens
         xml.append(format_token(semicolon_token))
+        xml.append(f"pop {subroutine_table[name_identifier.text]}")
         xml.append("</letStatement>")
     elif statement_token.text == "if":
+        if_label = subroutine_table.parent.label_generator.generate_label()
+        else_label = subroutine_table.parent.label_generator.generate_label()
         xml.append("<ifStatement>")
         opening_bracket_symbol, *tokens = tokens
         for token in (statement_token, opening_bracket_symbol):
@@ -177,6 +180,8 @@ def handle_statement(
         tokens, xml = handle_expression(tokens, xml, subroutine_table)
         closing_bracket_symbol, *tokens = tokens
         xml.append(format_token(closing_bracket_symbol))
+        xml.append("not")
+        xml.append(f"if-goto {else_label}")
         opening_bracket_symbol, *tokens = tokens
         xml.append(format_token(opening_bracket_symbol))
         # Handle statements
@@ -187,12 +192,14 @@ def handle_statement(
             token = tokens[0]
         xml.append("</statements>")
         closing_bracket_symbol, *tokens = tokens
+        xml.append(f"if-goto {if_label}")
         xml.append(format_token(closing_bracket_symbol))
         if tokens[0].text == "else":
             # Else statement
             else_keyword, opening_bracket, *tokens = tokens
             for token in (else_keyword, opening_bracket):
                 xml.append(format_token(token))
+            xml.append(f"({else_label})")
             # Handle statements
             token = tokens[0]
             xml.append("<statements>")
@@ -201,10 +208,14 @@ def handle_statement(
                 token = tokens[0]
             xml.append("</statements>")
             closing_bracket_symbol, *tokens = tokens
+            xml.append(f"({if_label})")
             xml.append(format_token(closing_bracket_symbol))
         xml.append("</ifStatement>")
     elif statement_token.text == "while":
+        check_label = subroutine_table.parent.label_generator.generate_label()
+        complete_label = subroutine_table.parent.label_generator.generate_label()
         xml.append("<whileStatement>")
+        xml.append(f"({check_label})")
         opening_bracket_symbol, *tokens = tokens
         for token in (statement_token, opening_bracket_symbol):
             xml.append(format_token(token))
@@ -212,6 +223,8 @@ def handle_statement(
         tokens, xml = handle_expression(tokens, xml, subroutine_table)
         closing_bracket_symbol, *tokens = tokens
         xml.append(format_token(closing_bracket_symbol))
+        xml.append("not")
+        xml.append(f"if-goto {complete_label}")
         opening_bracket_symbol, *tokens = tokens
         xml.append(format_token(opening_bracket_symbol))
         # Handle statements
@@ -223,6 +236,8 @@ def handle_statement(
         xml.append("</statements>")
         closing_bracket_symbol, *tokens = tokens
         xml.append(format_token(closing_bracket_symbol))
+        xml.append(f"if-goto {check_label}")
+        xml.append(f"({complete_label})")
         xml.append("</whileStatement>")
     elif statement_token.text == "do":
         xml.append("<doStatement>")
@@ -269,6 +284,8 @@ def handle_statement(
         if not tokens[0].text == ";":
             tokens, xml = handle_expression(tokens, xml, subroutine_table)
         semicolon_token, *tokens = tokens
+        if subroutine_table.is_void:
+            xml.append("push constant 0")
         xml.append("return")
         xml.append(format_token(semicolon_token))
         xml.append("</returnStatement>")
@@ -293,15 +310,25 @@ def handle_subroutine_call(
     xml.append(format_token(opening_bracket_symbol))
     xml.append("<expressionList>")
     token = tokens[0]
+    n_expressions = 0
     while token.text != ")":
         if token.text == ",":
             comma_symbol, *tokens = tokens
             xml.append(format_token(comma_symbol))
         tokens, xml = handle_expression(tokens, xml, subroutine_table)
+        n_expressions += 1
         token = tokens[0]
     xml.append("</expressionList>")
     closing_bracket_symbol, *tokens = tokens
     xml.append(format_token(closing_bracket_symbol))
+    subroutine_name = "".join(
+        [
+            token.text
+            for token in (identifier_token, dot_symbol, method_identifier)
+            if token
+        ]
+    )
+    xml.append(f"call {subroutine_name} {n_expressions}")
     return tokens, xml
 
 
@@ -320,6 +347,13 @@ def handle_term(
     elif token.type_ == TokenType.keyword:
         # Keyword constant
         xml.append(f"<keyword> {token.text} </keyword>")
+        if token.text == "true":
+            command = "push constant 1\nneg"
+        elif token.text == "false":
+            command = "push constant 0"
+        elif token.text == "this":
+            command = f"push {subroutine_table['this']}"
+        xml.append(command)
     elif token.type_ == TokenType.identifier:
         # Must be a var, array element, or subroutine call
         next_token = tokens[0]
