@@ -59,14 +59,19 @@ class SubroutineTable(SymbolTable):
         self,
         parent_table: SymbolTable,
         subroutine_name: str,
+        is_method: bool = True,
         table: Optional[dict[str, Symbol]] = None,
         counts: Optional[dict[str, int]] = None,
     ) -> None:
         super().__init__(parent_table.class_name, table, counts)
         self.subroutine_name = subroutine_name
-        if not self.table:
+        if not self.table and is_method:
             self.add_symbol(name="this", type_=parent_table.class_name, kind="arg")
         self.parent = parent_table
+
+    @property
+    def var_count(self) -> int:
+        return [symbol.kind for symbol in self].count("var")
 
     def __iter__(self) -> Generator:
         yield from list(self.table.keys()) + list(self.parent.table.keys())

@@ -27,7 +27,9 @@ def handle_class_token(
             token = tokens[0]
         elif token.text in ("constructor", "function", "method"):
             # Subroutine (method) declaration
-            tokens, xml = handle_subroutine_dec(tokens, xml, symbol_table)
+            tokens, xml = handle_subroutine_dec(
+                tokens, xml, symbol_table, is_method=(token.text != "function")
+            )
             token = tokens[0]
 
     closing_bracket_token, *tokens = tokens
@@ -67,7 +69,10 @@ def handle_class_var_dec(
 
 
 def handle_subroutine_dec(
-    tokens: list[Token], xml: list[str], symbol_table: SymbolTable
+    tokens: list[Token],
+    xml: list[str],
+    symbol_table: SymbolTable,
+    is_method: bool = True,
 ) -> tuple[list[Token], list[str]]:
     xml.append("<subroutineDec>")
     method_keyword, type_keyword, name_identifier, opening_bracket, *tokens = tokens
@@ -75,7 +80,9 @@ def handle_subroutine_dec(
         xml.append(format_token(token))
 
     subroutine_table = SubroutineTable(
-        parent_table=symbol_table, subroutine_name=name_identifier.text
+        parent_table=symbol_table,
+        subroutine_name=name_identifier.text,
+        is_method=is_method,
     )
     # Handle parameter list
     xml.append("<parameterList>")
@@ -121,6 +128,9 @@ def handle_subroutine_body(
                 tokens, xml, subroutine_table
             )
             token = tokens[0]
+    xml.append(
+        f"function {subroutine_table.parent.class_name}.{subroutine_table.subroutine_name} {subroutine_table.var_count}"
+    )
     # The rest are statements
     xml.append("<statements>")
     while token.text != "}":
@@ -219,6 +229,7 @@ def handle_statement(
         xml.append(format_token(statement_token))
         # Handle subroutine call
         identifier_token, *tokens = tokens
+        dot_symbol, method_identifier = None, None
         if tokens[0].text == ".":
             dot_symbol, method_identifier, *tokens = tokens
             for token in (identifier_token, dot_symbol, method_identifier):
@@ -230,13 +241,23 @@ def handle_statement(
         xml.append(format_token(opening_bracket_symbol))
         xml.append("<expressionList>")
         token = tokens[0]
+        n_expressions = 0
         while token.text != ")":
             if token.text == ",":
                 comma_symbol, *tokens = tokens
                 xml.append(format_token(comma_symbol))
             tokens, xml = handle_expression(tokens, xml, subroutine_table)
+            n_expressions += 1
             token = tokens[0]
         xml.append("</expressionList>")
+        subroutine_name = "".join(
+            [
+                token.text
+                for token in (identifier_token, dot_symbol, method_identifier)
+                if token
+            ]
+        )
+        xml.append(f"call {subroutine_name} {n_expressions}")
         closing_bracket_symbol, *tokens = tokens
         xml.append(format_token(closing_bracket_symbol))
         semicolon_token, *tokens = tokens
@@ -248,6 +269,7 @@ def handle_statement(
         if not tokens[0].text == ";":
             tokens, xml = handle_expression(tokens, xml, subroutine_table)
         semicolon_token, *tokens = tokens
+        xml.append("return")
         xml.append(format_token(semicolon_token))
         xml.append("</returnStatement>")
     else:
@@ -291,6 +313,7 @@ def handle_term(
     if token.type_ == TokenType.integerConstant:
         # Integer constant
         xml.append(f"<integerConstant> {token.text} </integerConstant>")
+        xml.append(f"push constant {token.text}")
     elif token.type_ == TokenType.stringConstant:
         # String constant
         xml.append(f"<stringConstant> {token.text} </stringConstant>")
@@ -316,7 +339,8 @@ def handle_term(
         else:
             # Just a var
             xml.append(format_token(token))
-            subroutine_table[token.text]
+            loc = subroutine_table[token.text]
+            xml.append(f"push {loc}")
     elif token.text == "(":
         xml.append(format_token(token))
         tokens, xml = handle_expression(tokens, xml, subroutine_table)
@@ -325,6 +349,8 @@ def handle_term(
     elif token.text in ("-", "~"):  # Unary ops
         xml.append(format_token(token))
         tokens, xml = handle_term(tokens, xml, subroutine_table)
+        op = "neg" if token.text == "-" else "not"
+        xml.append(op)
     else:
         xml.append(format_token(token))
     token = tokens[0]
@@ -334,7 +360,24 @@ def handle_term(
         op_token, *tokens = tokens
         xml.append(format_token(op_token))
         tokens, xml = handle_term(tokens, xml, subroutine_table)
+        xml.append(operations[op_token.text])
     return tokens, xml
+
+
+operations = {
+    "+": "add",
+    "-": "sub",
+    "*": "call Math.multiply 2",
+    "/": "call Math.divide 2",
+    "&": "and",
+    "|": "or",
+    "<": "lt",
+    ">": "gt",
+    "=": "eq",
+    "&amp;": "and",
+    "&gt;": "gt",
+    "&lt;": "lt",
+}
 
 
 def handle_expression(
@@ -376,7 +419,7 @@ def handle_var_dec(
 
 def compile_(program: str) -> str:
     result = handle_class_token(tokenize(program))
-    return "\n".join(result)
+    return "\n".join([line for line in result if "<" not in line])
 
 
 def format_token(token: Token) -> str:
@@ -390,6 +433,4 @@ if __name__ == "__main__":
     target_file = Path.cwd() / sys.argv[1]
     if not target_file.suffix == ".jack":
         raise ValueError(f"File type {repr(target_file.suffix)} not supported")
-    target_file.with_suffix(".vm").write_text(compile_(target_file.read_text()))
-
     target_file.with_suffix(".vm").write_text(compile_(target_file.read_text()))
