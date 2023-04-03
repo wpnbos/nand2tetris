@@ -102,4 +102,4 @@ class SubroutineTable(SymbolTable):
         return f"{self.class_name + '.' + self.subroutine_name}\n{rows}"
 
 
-kinds = ("static", "field", "var", "arg")
+kinds = ("static", "field", "var", "argument")
