@@ -132,6 +132,11 @@ def handle_subroutine_body(
     xml.append(
         f"function {subroutine_table.parent.class_name}.{subroutine_table.subroutine_name} {subroutine_table.var_count}"
     )
+    # Constructor memory allocation
+    if subroutine_table.is_constructor:
+        xml.append(f"push constant {subroutine_table.field_count}")
+        xml.append("call Memory.alloc 1")
+        xml.append("pop pointer 0")
     # The rest are statements
     xml.append("// <statements>")
     while token.text != "}":
@@ -453,7 +458,7 @@ def handle_var_dec(
 
 def compile_(program: str) -> str:
     result = handle_class_token(tokenize(program))
-    return "\n".join([line for line in result])
+    return "\n".join([line for line in result if "// <" not in line])
 
 
 def format_token(token: Token) -> str:
@@ -464,7 +469,9 @@ if __name__ == "__main__":
     import sys
     from pathlib import Path
 
-    target_file = Path.cwd() / sys.argv[1]
-    if not target_file.suffix == ".jack":
-        raise ValueError(f"File type {repr(target_file.suffix)} not supported")
-    target_file.with_suffix(".vm").write_text(compile_(target_file.read_text()))
+    target_path = Path.cwd() / sys.argv[1]
+    if not target_path.suffix == ".jack" and not target_path.is_dir():
+        raise ValueError(f"File type {repr(target_path.suffix)} not supported")
+    files = list(target_path.glob("*.jack")) if target_path.is_dir() else [target_path]
+    for jack_file in files:
+        jack_file.with_suffix(".vm").write_text(compile_(jack_file.read_text()))

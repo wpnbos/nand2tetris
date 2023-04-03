@@ -72,19 +72,25 @@ class SubroutineTable(SymbolTable):
         subroutine_name: str,
         is_method: bool = True,
         is_void: bool = False,
+        is_constructor: bool = False,
         table: Optional[dict[str, Symbol]] = None,
         counts: Optional[dict[str, int]] = None,
     ) -> None:
         super().__init__(parent_table.class_name, table, counts)
         self.subroutine_name = subroutine_name
         self.is_void = is_void
+        self.is_constructor = is_constructor
         if not self.table and is_method:
-            self.add_symbol(name="this", type_=parent_table.class_name, kind="arg")
+            self.add_symbol(name="this", type_=parent_table.class_name, kind="argument")
         self.parent = parent_table
 
     @property
     def var_count(self) -> int:
         return [symbol.kind for symbol in self.table.values()].count("var")
+
+    @property
+    def field_count(self) -> int:
+        return [symbol.kind for symbol in self.table.values()].count("field")
 
     def __iter__(self) -> Generator:
         yield from list(self.table.keys()) + list(self.parent.table.keys())
@@ -93,7 +99,12 @@ class SubroutineTable(SymbolTable):
         symbol = self.table.get(key, None) or self.parent.table.get(key, None)
         if symbol is None:
             raise KeyError
-        loc = f"{symbol.kind if not symbol.kind == 'var' else 'local'} {symbol.index}"
+        memseg = symbol.kind
+        if symbol.kind == "var":
+            memseg = "local"
+        elif symbol.kind == "field":
+            memseg = "this"
+        loc = f"{memseg} {symbol.index}"
         print(f"Accessing {symbol.name} @", loc)
         return loc
 
