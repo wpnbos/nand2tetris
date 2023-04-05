@@ -84,6 +84,7 @@ def handle_subroutine_dec(
         subroutine_name=name_identifier.text,
         is_method=is_method,
         is_void=(type_keyword.text == "void"),
+        is_constructor=method_keyword.text == "constructor",
     )
     # Handle parameter list
     xml.append("// <parameterList>")
@@ -215,6 +216,9 @@ def handle_statement(
             closing_bracket_symbol, *tokens = tokens
             xml.append(f"label {if_label}")
             xml.append(format_token(closing_bracket_symbol))
+        else:
+            xml.append(f"label {else_label}")
+            xml.append(f"label {if_label}")
         xml.append("// </ifStatement>")
     elif statement_token.text == "while":
         check_label = subroutine_table.parent.label_generator.generate_label()
@@ -262,6 +266,21 @@ def handle_statement(
         xml.append("// <expressionList>")
         token = tokens[0]
         n_expressions = 0
+
+        if method_identifier is None:
+            # Method call on this
+            n_expressions += 1
+            xml.append(f"push {subroutine_table['this']}")
+            subroutine_name = f"{subroutine_table.class_name}.{identifier_token.text}"
+        elif identifier_token.text in subroutine_table:
+            # Method call on variable
+            n_expressions += 1
+            xml.append(f"push {subroutine_table[identifier_token.text]}")
+            var_type = subroutine_table.get_symbol(identifier_token.text).type_
+            subroutine_name = f"{var_type}.{method_identifier.text}"
+        else:
+            # Function call?
+            subroutine_name = f"{identifier_token.text}.{method_identifier.text}"
         while token.text != ")":
             if token.text == ",":
                 comma_symbol, *tokens = tokens
@@ -270,14 +289,9 @@ def handle_statement(
             n_expressions += 1
             token = tokens[0]
         xml.append("// </expressionList>")
-        subroutine_name = "".join(
-            [
-                token.text
-                for token in (identifier_token, dot_symbol, method_identifier)
-                if token
-            ]
-        )
+
         xml.append(f"call {subroutine_name} {n_expressions}")
+
         closing_bracket_symbol, *tokens = tokens
         xml.append(format_token(closing_bracket_symbol))
         semicolon_token, *tokens = tokens
@@ -304,6 +318,7 @@ def handle_subroutine_call(
     tokens: list[Token], xml: list[str], subroutine_table: SubroutineTable
 ) -> tuple[list[Token], list[str]]:
     identifier_token, *tokens = tokens
+    dot_symbol, method_identifier = None, None
     if tokens[0].text == ".":
         dot_symbol, method_identifier, *tokens = tokens
         for token in (identifier_token, dot_symbol, method_identifier):
@@ -313,9 +328,24 @@ def handle_subroutine_call(
     # Handle expression list
     opening_bracket_symbol, *tokens = tokens
     xml.append(format_token(opening_bracket_symbol))
+    n_expressions = 0
+
+    if method_identifier is None:
+        # Method call on this
+        n_expressions += 1
+        xml.append(f"push {subroutine_table['this']}")
+        subroutine_name = f"{subroutine_table.class_name}.{identifier_token.text}"
+    elif identifier_token.text in subroutine_table:
+        # Method call on variable
+        n_expressions += 1
+        xml.append(f"push {subroutine_table[identifier_token.text]}")
+        var_type = subroutine_table.get_symbol(identifier_token.text).type_
+        subroutine_name = f"{var_type}.{method_identifier.text}"
+    else:
+        # Function call?
+        subroutine_name = f"{identifier_token.text}.{method_identifier.text}"
     xml.append("// <expressionList>")
     token = tokens[0]
-    n_expressions = 0
     while token.text != ")":
         if token.text == ",":
             comma_symbol, *tokens = tokens
@@ -326,13 +356,6 @@ def handle_subroutine_call(
     xml.append("// </expressionList>")
     closing_bracket_symbol, *tokens = tokens
     xml.append(format_token(closing_bracket_symbol))
-    subroutine_name = "".join(
-        [
-            token.text
-            for token in (identifier_token, dot_symbol, method_identifier)
-            if token
-        ]
-    )
     xml.append(f"call {subroutine_name} {n_expressions}")
     return tokens, xml
 

@@ -78,6 +78,7 @@ class SubroutineTable(SymbolTable):
     ) -> None:
         super().__init__(parent_table.class_name, table, counts)
         self.subroutine_name = subroutine_name
+        self.is_method = is_method
         self.is_void = is_void
         self.is_constructor = is_constructor
         if not self.table and is_method:
@@ -90,7 +91,18 @@ class SubroutineTable(SymbolTable):
 
     @property
     def field_count(self) -> int:
-        return [symbol.kind for symbol in self.table.values()].count("field")
+        print("field count")
+        for key in self:
+            print(self.get_symbol(key))
+        field_count = [self.get_symbol(symbol).kind for symbol in self].count("field")
+        print(f"{field_count=}")
+        print("------")
+        return field_count
+
+    def get_symbol(self, key: str) -> Symbol:
+        if key in self.table:
+            return self.table[key]
+        return self.parent.table[key]
 
     def __iter__(self) -> Generator:
         yield from list(self.table.keys()) + list(self.parent.table.keys())
@@ -98,7 +110,7 @@ class SubroutineTable(SymbolTable):
     def __getitem__(self, key: str) -> str:
         symbol = self.table.get(key, None) or self.parent.table.get(key, None)
         if symbol is None:
-            raise KeyError
+            raise KeyError(key)
         memseg = symbol.kind
         if symbol.kind == "var":
             memseg = "local"
