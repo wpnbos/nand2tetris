@@ -81,7 +81,7 @@ class SubroutineTable(SymbolTable):
         self.is_method = is_method
         self.is_void = is_void
         self.is_constructor = is_constructor
-        if not self.table and is_method:
+        if not self.table and is_method and not is_constructor:
             self.add_symbol(name="this", type_=parent_table.class_name, kind="argument")
         self.parent = parent_table
 
@@ -108,6 +108,8 @@ class SubroutineTable(SymbolTable):
         yield from list(self.table.keys()) + list(self.parent.table.keys())
 
     def __getitem__(self, key: str) -> str:
+        if key == "this" and "this" not in self.table:
+            return "pointer 0"
         symbol = self.table.get(key, None) or self.parent.table.get(key, None)
         if symbol is None:
             raise KeyError(key)

@@ -133,6 +133,9 @@ def handle_subroutine_body(
     xml.append(
         f"function {subroutine_table.parent.class_name}.{subroutine_table.subroutine_name} {subroutine_table.var_count}"
     )
+    if subroutine_table.is_method and not subroutine_table.is_constructor:
+        xml.append("push argument 0")
+        xml.append("pop pointer 0")
     # Constructor memory allocation
     if subroutine_table.is_constructor:
         xml.append(f"push constant {subroutine_table.field_count}")
