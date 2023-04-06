@@ -375,6 +375,13 @@ def handle_term(
     elif token.type_ == TokenType.stringConstant:
         # String constant
         xml.append(f"// <stringConstant> {token.text} </stringConstant>")
+        xml.append("// STRING")
+        n_chars = len(token.text)
+        xml.append(f"push constant {n_chars}")
+        xml.append("call String.new 1")
+        for char in token.text:
+            xml.append(f"push constant {ord(char)}")
+            xml.append("call String.appendChar 2")
     elif token.type_ == TokenType.keyword:
         # Keyword constant
         xml.append(f"// <keyword> {token.text} </keyword>")
