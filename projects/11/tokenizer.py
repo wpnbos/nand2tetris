@@ -20,6 +20,7 @@ class Token:
 
 
 STRING_SPACE = "?x?"
+STRING_SEMICOLON = ":semic:"
 
 
 def strip_comments(program: str) -> str:
@@ -42,6 +43,11 @@ def tokenize(program: str) -> list[Token]:
         string=program,
         repl=lambda match: match.group().replace(" ", STRING_SPACE),
     )
+    fixed_strings = re.sub(
+        pattern=r"(?<=\").+(?=\")",
+        string=fixed_strings,
+        repl=lambda match: match.group().replace(";", STRING_SEMICOLON),
+    )
     left_spaced_program = re.sub(
         pattern=rf"(?<! )[{''.join([re.escape(symbol) for symbol in symbols])}]",
         string=fixed_strings,
@@ -53,7 +59,8 @@ def tokenize(program: str) -> list[Token]:
         repl=lambda match: match.group() + " ",
     )
     tokenized = [
-        token.replace(STRING_SPACE, " ").strip() for token in spaced_program.split()
+        token.replace(STRING_SPACE, " ").replace(STRING_SEMICOLON, ";").strip()
+        for token in spaced_program.split()
     ]
     tokens = []
     for token in tokenized:
